@@ -1,0 +1,36 @@
+# Dependencies and build outputs
+node_modules/
+dist/
+staging/
+release/
+out/
+*.exe
+*.asar
+
+# Local DeepSeek Harness state (may contain credentials and conversations)
+.dsh/
+auth.json
+update-cache.json
+*.log
+*.db
+*.sqlite*
+
+# Secrets and signing material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.user
+*.suo
+

@@ -1,0 +1,62 @@
+{
+  "name": "deepseek-desktop",
+  "productName": "DeepSeek",
+  "version": "1.1.0",
+  "description": "Community-maintained Windows desktop shell for DeepSeek Harness",
+  "author": "DeepSeek Harness Desktop contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/yijigao/deepseek-harness-desktop",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yijigao/deepseek-harness-desktop.git"
+  },
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.deepseek.desktop",
+    "productName": "DeepSeek",
+    "compression": "maximum",
+    "asar": true,
+    "npmRebuild": false,
+    "directories": {
+      "output": "../dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "titlebar.js",
+      "claude-theme.css",
+      "fix-junctions.js",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "../staging/payload", "to": "." }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DeepSeek",
+      "artifactName": "DeepSeek-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "DeepSeek-Desktop-${version}-portable.${ext}"
+    }
+  }
+}
