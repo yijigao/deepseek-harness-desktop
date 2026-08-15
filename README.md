@@ -1,18 +1,51 @@
-# DeepSeek Harness Desktop
+<div align="center">
+  <img src="assets/deepseek-whale-225.png" width="88" alt="DeepSeek Harness Desktop logo">
+  <h1>DeepSeek Harness Desktop</h1>
+  <p>开箱即用的 DeepSeek Harness Windows 桌面体验</p>
+  <p>
+    <img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows" alt="Windows">
+    <img src="https://img.shields.io/badge/Electron-43-47848F?logo=electron" alt="Electron 43">
+    <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
+  </p>
+</div>
 
-一个由社区维护的 Windows 桌面封装：将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 `dsh web` 界面运行在独立 Electron 窗口中。
+DeepSeek Harness Desktop 是一个由社区维护的 Windows 桌面封装。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 完整的 `dsh web` 运行时与 Web GUI 放进独立 Electron 窗口，让用户像使用普通桌面软件一样启动 Harness，无需每次打开终端、输入命令或手动管理后台进程。
 
 > [!IMPORTANT]
 > 这是社区项目，不是 DeepSeek 官方桌面客户端，也不代表 DeepSeek 官方立场。
 
-## 功能
+## 界面预览
 
-- 双击启动，无需手动打开终端
-- 独立的深色 Electron 窗口与原生窗口控制
-- 使用随机本机端口启动 `dsh web`，关闭窗口时结束子进程
-- 复用用户自己的 `DSH_HOME`（默认 `%USERPROFILE%\.dsh`）
-- 每天最多检查一次上游 DeepSeek Harness 的 major/minor 更新
-- 可重建内置运行时并生成安装版和便携版
+### 专注的桌面工作区
+
+![DeepSeek Harness Desktop 主界面](assets/screenshots/workspace.png)
+
+### 完整保留 Harness 设置能力
+
+![DeepSeek Harness Desktop 设置界面](assets/screenshots/settings.png)
+
+## 项目亮点
+
+- **双击即用**：将命令行启动流程封装为标准 Windows 应用，安装版和便携版均可构建。
+- **原生桌面体验**：独立窗口、自绘标题栏、最小化/最大化/关闭控制，以及经过统一设计的深色主题。
+- **完整 Harness 能力**：保留工作区、模型、插件、Agent 预设、权限和语言等原生功能。
+- **本机安全运行**：`dsh web` 仅监听 `127.0.0.1` 随机端口；关闭窗口时同步结束服务进程。
+- **无缝复用配置**：直接使用现有 `DSH_HOME`（默认 `%USERPROFILE%\.dsh`），命令行版与桌面版共享设置和会话。
+- **上游版本感知**：每天最多检查一次 DeepSeek Harness major/minor 更新，并提供源码重建更新流程。
+- **可复现构建**：运行时部署、依赖补齐、junction 展平、冒烟测试和 Electron 打包均由脚本完成。
+- **隐私优先开源**：源码仓库明确排除账号凭据、历史会话、日志、缓存、签名材料和本机构建产物。
+
+## 工作方式
+
+```text
+启动桌面应用
+    ↓
+在本机随机端口启动 dsh web
+    ↓
+Electron 窗口加载 Web GUI 并注入桌面主题
+    ↓
+关闭窗口时回收 Harness 子进程
+```
 
 ## 隐私
 
