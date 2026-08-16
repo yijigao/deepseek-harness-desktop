@@ -20,6 +20,8 @@ DeepSeek Harness Desktop 是一个由社区维护的 Windows 桌面封装。它�
 
 Harness Lab lets you compare two DeepSeek Harness runs side by side and inspect differences in tool usage, retries, failures, file churn, and execution efficiency.
 
+![Harness Lab Compare](assets/screenshots/harness-lab-compare.png)
+
 它是独立于 Harness Web 工作区的本地 Desktop UI，第一版包含：
 
 - **Runs**：扫描 `DSH_HOME/sessions`，按最新时间列出经过净化的运行指标，并选择 Run A / Run B。

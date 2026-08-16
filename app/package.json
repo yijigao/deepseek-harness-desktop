@@ -1,7 +1,7 @@
 {
   "name": "deepseek-desktop",
   "productName": "DeepSeek",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Community-maintained Windows desktop shell for DeepSeek Harness",
   "author": "DeepSeek Harness Desktop contributors",
   "license": "MIT",
