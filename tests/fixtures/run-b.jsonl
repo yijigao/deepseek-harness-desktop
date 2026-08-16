@@ -1,0 +1,96 @@
+{"type":"session","version":0,"id":"synthetic-run-b","createdAt":1767348000000,"cwd":"C:\\synthetic\\workspace\\run-b","delegationDepth":0}
+{"type":"turn/start","seq":0,"time":1767348000350,"data":{"turn":1}}
+{"type":"user/message","seq":1,"time":1767348000700,"data":{"message":{"role":"user","content":"Synthetic fixture task; not copied from a user session."}}}
+{"type":"step/start","seq":2,"time":1767348001050,"data":{"step":0}}
+{"type":"tool/call","seq":3,"time":1767348001400,"data":{"callId":"run-b-call-0","name":"read","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\source-0.js\"}"}}
+{"type":"tool/result","seq":4,"time":1767348001750,"data":{"callId":"run-b-call-0","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-0","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":5,"time":1767348002100,"data":{"callId":"run-b-call-1","name":"grep","arguments":"{\"pattern\":\"synthetic-1\",\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\"}"}}
+{"type":"tool/result","seq":6,"time":1767348002450,"data":{"callId":"run-b-call-1","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-1","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":7,"time":1767348002800,"data":{"step":0}}
+{"type":"step/start","seq":8,"time":1767348003150,"data":{"step":1}}
+{"type":"tool/call","seq":9,"time":1767348003500,"data":{"callId":"run-b-call-2","name":"glob","arguments":"{\"pattern\":\"**/synthetic-2.js\"}"}}
+{"type":"tool/result","seq":10,"time":1767348003850,"data":{"callId":"run-b-call-2","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-2","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":11,"time":1767348004200,"data":{"callId":"run-b-call-3","name":"edit","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\edit-3.js\",\"replacement\":\"synthetic edit\"}"}}
+{"type":"tool/result","seq":12,"time":1767348004550,"data":{"callId":"run-b-call-3","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-3","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":13,"time":1767348004900,"data":{"step":1}}
+{"type":"step/start","seq":14,"time":1767348005250,"data":{"step":2}}
+{"type":"tool/call","seq":15,"time":1767348005600,"data":{"callId":"run-b-call-4","name":"read_image","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\image-4.png\"}"}}
+{"type":"tool/result","seq":16,"time":1767348005950,"data":{"callId":"run-b-call-4","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-4","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":17,"time":1767348006300,"data":{"callId":"run-b-call-5","name":"bash","arguments":"{\"command\":\"node synthetic-check-5.js\"}"}}
+{"type":"tool/result","seq":18,"time":1767348006650,"data":{"callId":"run-b-call-5","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-5","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":19,"time":1767348007000,"data":{"step":2}}
+{"type":"step/start","seq":20,"time":1767348007350,"data":{"step":3}}
+{"type":"tool/call","seq":21,"time":1767348007700,"data":{"callId":"run-b-call-6","name":"inspect","arguments":"{\"target\":\"synthetic-6\"}"}}
+{"type":"tool/result","seq":22,"time":1767348008050,"data":{"callId":"run-b-call-6","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-6","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":23,"time":1767348008400,"data":{"callId":"run-b-call-7","name":"bash","arguments":"{\"command\":\"npm test\"}"}}
+{"type":"tool/result","seq":24,"time":1767348008750,"data":{"callId":"run-b-call-7","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-7","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":25,"time":1767348009100,"data":{"step":3}}
+{"type":"step/start","seq":26,"time":1767348009450,"data":{"step":4}}
+{"type":"tool/call","seq":27,"time":1767348009800,"data":{"callId":"run-b-call-8","name":"grep","arguments":"{\"pattern\":\"synthetic-8\",\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\"}"}}
+{"type":"tool/result","seq":28,"time":1767348010150,"data":{"callId":"run-b-call-8","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-8","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":29,"time":1767348010500,"data":{"callId":"run-b-call-9","name":"glob","arguments":"{\"pattern\":\"**/synthetic-9.js\"}"}}
+{"type":"tool/result","seq":30,"time":1767348010850,"data":{"callId":"run-b-call-9","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-9","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":31,"time":1767348011200,"data":{"step":4}}
+{"type":"step/start","seq":32,"time":1767348011550,"data":{"step":5}}
+{"type":"tool/call","seq":33,"time":1767348011900,"data":{"callId":"run-b-call-10","name":"edit","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\edit-10.js\",\"replacement\":\"synthetic edit\"}"}}
+{"type":"tool/result","seq":34,"time":1767348012250,"data":{"callId":"run-b-call-10","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-10","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":35,"time":1767348012600,"data":{"callId":"run-b-call-11","name":"read_image","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\image-11.png\"}"}}
+{"type":"tool/result","seq":36,"time":1767348012950,"data":{"callId":"run-b-call-11","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-11","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":37,"time":1767348013300,"data":{"step":5}}
+{"type":"step/start","seq":38,"time":1767348013650,"data":{"step":6}}
+{"type":"tool/call","seq":39,"time":1767348014000,"data":{"callId":"run-b-call-12","name":"bash","arguments":"{\"command\":\"node synthetic-check-12.js\"}"}}
+{"type":"tool/result","seq":40,"time":1767348014350,"data":{"callId":"run-b-call-12","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-12","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":41,"time":1767348014700,"data":{"callId":"run-b-call-13","name":"inspect","arguments":"{\"target\":\"synthetic-13\"}"}}
+{"type":"tool/result","seq":42,"time":1767348015050,"data":{"callId":"run-b-call-13","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-13","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":43,"time":1767348015400,"data":{"step":6}}
+{"type":"step/start","seq":44,"time":1767348015750,"data":{"step":7}}
+{"type":"tool/call","seq":45,"time":1767348016100,"data":{"callId":"run-b-call-14","name":"read","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\source-14.js\"}"}}
+{"type":"tool/result","seq":46,"time":1767348016450,"data":{"callId":"run-b-call-14","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-14","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":47,"time":1767348016800,"data":{"callId":"run-b-call-15","name":"grep","arguments":"{\"pattern\":\"synthetic-15\",\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\"}"}}
+{"type":"tool/result","seq":48,"time":1767348017150,"data":{"callId":"run-b-call-15","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-15","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":49,"time":1767348017500,"data":{"step":7}}
+{"type":"step/start","seq":50,"time":1767348017850,"data":{"step":8}}
+{"type":"tool/call","seq":51,"time":1767348018200,"data":{"callId":"run-b-call-16","name":"glob","arguments":"{\"pattern\":\"**/synthetic-16.js\"}"}}
+{"type":"tool/result","seq":52,"time":1767348018550,"data":{"callId":"run-b-call-16","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-16","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"tool/call","seq":53,"time":1767348018900,"data":{"callId":"run-b-call-17","name":"edit","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\edit-17.js\",\"replacement\":\"synthetic edit\"}"}}
+{"type":"tool/result","seq":54,"time":1767348019250,"data":{"callId":"run-b-call-17","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-17","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":55,"time":1767348019600,"data":{"step":8}}
+{"type":"step/start","seq":56,"time":1767348019950,"data":{"step":9}}
+{"type":"tool/call","seq":57,"time":1767348020300,"data":{"callId":"run-b-call-18","name":"read_image","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\image-18.png\"}"}}
+{"type":"tool/result","seq":58,"time":1767348020650,"data":{"callId":"run-b-call-18","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-18","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":59,"time":1767348021000,"data":{"step":9}}
+{"type":"step/start","seq":60,"time":1767348021350,"data":{"step":10}}
+{"type":"tool/call","seq":61,"time":1767348021700,"data":{"callId":"run-b-call-19","name":"bash","arguments":"{\"command\":\"node synthetic-check-19.js\"}"}}
+{"type":"tool/result","seq":62,"time":1767348022050,"data":{"callId":"run-b-call-19","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-19","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":63,"time":1767348022400,"data":{"step":10}}
+{"type":"step/start","seq":64,"time":1767348022750,"data":{"step":11}}
+{"type":"tool/call","seq":65,"time":1767348023100,"data":{"callId":"run-b-call-20","name":"inspect","arguments":"{\"target\":\"synthetic-20\"}"}}
+{"type":"tool/result","seq":66,"time":1767348023450,"data":{"callId":"run-b-call-20","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-20","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":67,"time":1767348023800,"data":{"step":11}}
+{"type":"step/start","seq":68,"time":1767348024150,"data":{"step":12}}
+{"type":"tool/call","seq":69,"time":1767348024500,"data":{"callId":"run-b-call-21","name":"read","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\source-21.js\"}"}}
+{"type":"tool/result","seq":70,"time":1767348024850,"data":{"callId":"run-b-call-21","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-21","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":71,"time":1767348025200,"data":{"step":12}}
+{"type":"step/start","seq":72,"time":1767348025550,"data":{"step":13}}
+{"type":"tool/call","seq":73,"time":1767348025900,"data":{"callId":"run-b-call-22","name":"grep","arguments":"{\"pattern\":\"synthetic-22\",\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\"}"}}
+{"type":"tool/result","seq":74,"time":1767348026250,"data":{"callId":"run-b-call-22","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-22","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":75,"time":1767348026600,"data":{"step":13}}
+{"type":"step/start","seq":76,"time":1767348026950,"data":{"step":14}}
+{"type":"tool/call","seq":77,"time":1767348027300,"data":{"callId":"run-b-call-23","name":"glob","arguments":"{\"pattern\":\"**/synthetic-23.js\"}"}}
+{"type":"tool/result","seq":78,"time":1767348027650,"data":{"callId":"run-b-call-23","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-23","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":79,"time":1767348028000,"data":{"step":14}}
+{"type":"step/start","seq":80,"time":1767348028350,"data":{"step":15}}
+{"type":"tool/call","seq":81,"time":1767348028700,"data":{"callId":"run-b-call-24","name":"edit","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\edit-24.js\",\"replacement\":\"synthetic edit\"}"}}
+{"type":"tool/result","seq":82,"time":1767348029050,"data":{"callId":"run-b-call-24","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-24","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":83,"time":1767348029400,"data":{"step":15}}
+{"type":"step/start","seq":84,"time":1767348029750,"data":{"step":16}}
+{"type":"tool/call","seq":85,"time":1767348030100,"data":{"callId":"run-b-call-25","name":"read_image","arguments":"{\"path\":\"C:\\\\synthetic\\\\workspace\\\\run-b\\\\image-25.png\"}"}}
+{"type":"tool/result","seq":86,"time":1767348030450,"data":{"callId":"run-b-call-25","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-25","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":87,"time":1767348030800,"data":{"step":16}}
+{"type":"step/start","seq":88,"time":1767348031150,"data":{"step":17}}
+{"type":"tool/call","seq":89,"time":1767348031500,"data":{"callId":"run-b-call-26","name":"bash","arguments":"{\"command\":\"node synthetic-check-26.js\"}"}}
+{"type":"tool/result","seq":90,"time":1767348031850,"data":{"callId":"run-b-call-26","message":{"role":"tool","content":[{"type":"tool-result","toolCallId":"run-b-call-26","isError":false,"content":"Synthetic command success."}]}}}
+{"type":"step/end","seq":91,"time":1767348032200,"data":{"step":17}}
+{"type":"llm/retry","seq":92,"time":1767348032550,"data":{"attempt":1,"reason":"synthetic transient condition"}}
+{"type":"assistant/message","seq":93,"time":1767348032900,"data":{"message":{"role":"assistant","content":"Synthetic fixture completion.","source":{"model":"deepseek-demo-b"}},"usage":{"inputTokens":6100,"outputTokens":1700}}}
+{"type":"turn/end","seq":94,"time":1767348033250,"data":{"turn":1,"reason":{"kind":"completed"}}}
