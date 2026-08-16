@@ -37,6 +37,7 @@ test('Harness Lab preload exposes only the three strict query methods', () => {
 test('Harness Lab renderer is static, local, and has no Node or arbitrary network access', () => {
   const html = read('app/harness-lab/index.html')
   const renderer = read('app/harness-lab/renderer.js')
+  assert.match(html, /Stop benchmarking models\. Benchmark the harness\./)
   assert.match(html, /Content-Security-Policy/)
   assert.match(html, /connect-src 'none'/)
   assert.doesNotMatch(html, /https?:\/\//)
