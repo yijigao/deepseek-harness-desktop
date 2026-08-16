@@ -155,10 +155,15 @@
     return {
       runId,
       startedAt: value.startedAt ?? value.started_at ?? null,
+      source: rawString(value.source),
       model: rawString(value.model || value.modelName),
       status: rawString(value.status || 'unknown').toLowerCase(),
       metrics,
     }
+  }
+
+  function sourceLabel(source) {
+    return source === 'codex' ? 'Codex' : source === 'deepseek-harness' ? 'DeepSeek Harness' : 'Unknown source'
   }
 
   function sortRuns(runs) {
@@ -340,6 +345,7 @@
       const startedCell = createTextElement('td', formatDate(run.startedAt), 'time-cell')
       startedCell.title = compactString(run.runId, 'Run', 80)
       row.append(startedCell)
+      row.append(createTextElement('td', sourceLabel(run.source), 'source-cell'))
       row.append(createTextElement('td', compactString(run.model, 'Unknown model', 42), 'model-cell'))
       row.append(createTextElement('td', formatDuration(metricFromRun(run, 'duration_ms')), 'metric-cell'))
 
@@ -466,7 +472,10 @@
       const valueA = compareMetricValue(result, definition.key, 'a', runA)
       const valueB = compareMetricValue(result, definition.key, 'b', runB)
       const delta = findMetricDelta(result && result.metricDiffs, definition.key, valueA, valueB)
-      elements.summaryCards.append(makeSummaryCard(definition, valueA, valueB, delta))
+      const safeDefinition = definition.key === 'total_tokens' && result?.summary?.tokenComparability === 'not directly comparable'
+        ? { ...definition, label: 'Tokens · not directly comparable' }
+        : definition
+      elements.summaryCards.append(makeSummaryCard(safeDefinition, valueA, valueB, delta))
     }
   }
 
@@ -538,7 +547,10 @@
       const delta = findMetricDelta(result && result.metricDiffs, definition.key, valueA, valueB)
       const row = document.createElement('div')
       row.className = 'metric-row'
-      row.append(createTextElement('span', definition.label, 'metric-name'))
+      const label = definition.key === 'total_tokens' && result?.summary?.tokenComparability === 'not directly comparable'
+        ? 'Tokens · not directly comparable'
+        : definition.label
+      row.append(createTextElement('span', label, 'metric-name'))
       const values = document.createElement('div')
       values.className = 'metric-values'
       values.append(
@@ -557,11 +569,11 @@
     const runB = selectedRun('b')
     const pillA = document.createElement('span')
     pillA.className = 'pair-pill pair-pill-a'
-    pillA.append(createTextElement('b', 'A', 'pair-letter'), createTextElement('span', runA ? compactString(runA.runId, 'Not selected', 24) : 'Not selected'))
-    const divider = createTextElement('span', 'vs', 'pair-divider')
+    pillA.append(createTextElement('b', 'A', 'pair-letter'), createTextElement('span', runA ? sourceLabel(runA.source) : 'Not selected'))
+    const divider = createTextElement('span', 'VS', 'pair-divider')
     const pillB = document.createElement('span')
     pillB.className = 'pair-pill pair-pill-b'
-    pillB.append(createTextElement('b', 'B', 'pair-letter'), createTextElement('span', runB ? compactString(runB.runId, 'Not selected', 24) : 'Not selected'))
+    pillB.append(createTextElement('b', 'B', 'pair-letter'), createTextElement('span', runB ? sourceLabel(runB.source) : 'Not selected'))
     elements.compareRunPair.append(pillA, divider, pillB)
   }
 

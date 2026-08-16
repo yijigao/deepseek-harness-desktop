@@ -10,6 +10,7 @@ const { HarnessLabSessionService, publicRun } = require('../app/lib/harness-lab/
 const { compareRuns } = require('../app/lib/trajectory/compare')
 const { parseRun } = require('../app/lib/trajectory/parser')
 const { REDACTED, safeIdentifier, sanitizeMetadata } = require('../app/lib/trajectory/redaction')
+const { normalizeToolCategory } = require('../app/lib/trajectory/tool-categories')
 
 const fixtureDir = path.join(__dirname, 'fixtures')
 
@@ -18,7 +19,7 @@ function fixture(name) {
 }
 
 function parsed(name) {
-  return parseRun(fixture(name), { fileName: name })
+  return parseRun(fixture(name), { fileName: name, format: name.startsWith('codex-') ? 'codex-jsonl' : 'dsh-jsonl' })
 }
 
 test('normal DSH JSONL parses into the canonical trajectory without message content', () => {
@@ -176,6 +177,84 @@ test('official turn reason objects and streaming usage chunks are normalized', (
   assert.equal(run.metrics.assistant_messages, 1)
 })
 
+test('observed Codex envelopes normalize without exporting content or source identity', () => {
+  const run = parsed('codex-run.jsonl')
+  assert.equal(run.source, 'codex')
+  assert.equal(run.sourceVersion, '0.145.0')
+  assert.equal(run.model, 'gpt-5.6-terra')
+  assert.equal(run.workspace, 'harness-cross-smoke')
+  assert.equal(run.status, 'success')
+  assert.equal(run.metrics.tool_calls, 3)
+  assert.equal(run.metrics.failed_tool_calls, 1)
+  assert.equal(run.metrics.files_written, 1)
+  assert.equal(run.metrics.shell_commands, 2)
+  assert.equal(run.metrics.failed_shell_commands, 1)
+  assert.deepEqual({ ...run.metrics.tool_category_counts }, { test: 2, edit_file: 1 })
+  assert.equal(run.metrics.total_tokens, 1440)
+  const serialized = JSON.stringify(publicRun(run))
+  assert.doesNotMatch(serialized, /synthetic-codex-session|synthetic-source-session-id|Synthetic private|python -m pytest/)
+  assert.doesNotMatch(serialized, /[A-Za-z]:\\|harness-cross-smoke\\/)
+})
+
+test('Codex unknown, malformed, missing, secret, and absolute-path shapes are safe', () => {
+  const run = parsed('codex-unknown-secret.jsonl')
+  assert.equal(run._diagnostics.malformedLines, 1)
+  assert.ok(run._diagnostics.unknownEvents >= 2)
+  const serialized = JSON.stringify(publicRun(run))
+  assert.doesNotMatch(serialized, /synthetic-source-session-secret|Synthetic User|private\.py|[A-Za-z]:\\/)
+  assert.equal(run.workspace, 'private-workspace')
+  assert.doesNotMatch(serialized, /synthetic-authorization-value|synthetic-secret-value|github_pat_syntheticvalue|synthetic-placeholder/)
+  assert.match(serialized, /\[REDACTED\]|\[CONTENT OMITTED\]/)
+})
+
+test('canonical tool category normalization covers stable cross-harness operations', () => {
+  assert.equal(normalizeToolCategory('exec_command', { cmd: 'node script.js' }), 'shell')
+  assert.equal(normalizeToolCategory('bash', { command: 'python -m pytest' }), 'test')
+  assert.equal(normalizeToolCategory('exec', { command: 'git status -sb' }), 'git')
+  assert.equal(normalizeToolCategory('grep', {}), 'search')
+  assert.equal(normalizeToolCategory('read_file', {}), 'read_file')
+  assert.equal(normalizeToolCategory('write_file', {}), 'write_file')
+  assert.equal(normalizeToolCategory('apply_patch', {}), 'edit_file')
+  assert.equal(normalizeToolCategory('web_search', {}), 'network')
+  assert.equal(normalizeToolCategory('future_tool', {}), 'other')
+})
+
+test('Codex-to-Codex and DSH-to-Codex comparisons are supported safely', () => {
+  const codexA = parsed('codex-run.jsonl')
+  const codexB = parsed('codex-unknown-secret.jsonl')
+  const sameSource = compareRuns(codexA, codexB)
+  assert.equal(sameSource.summary.runA.source, 'codex')
+  assert.equal(sameSource.summary.runB.source, 'codex')
+  const crossSource = compareRuns(parsed('run-b.jsonl'), codexA)
+  assert.equal(crossSource.summary.runA.source, 'deepseek-harness')
+  assert.equal(crossSource.summary.runB.source, 'codex')
+  assert.equal(crossSource.summary.tokenComparability, 'not directly comparable')
+  assert.equal(crossSource.metricDiffs.total_tokens.delta, null)
+  assert.ok(crossSource.divergences.every((item) => !/deepseek/i.test(item.type)))
+})
+
+test('fixed DSH and Codex roots are discovered together with opaque IDs', async (t) => {
+  const root = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'harness-lab-cross-source-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const dshHome = path.join(root, 'dsh')
+  const dshSession = path.join(dshHome, 'sessions', 'synthetic', 'one')
+  const codexRoot = path.join(root, 'codex', 'sessions')
+  const codexSession = path.join(codexRoot, '2026', '02', '01')
+  fs.mkdirSync(dshSession, { recursive: true })
+  fs.mkdirSync(codexSession, { recursive: true })
+  fs.copyFileSync(path.join(fixtureDir, 'run-b.jsonl'), path.join(dshSession, 'session.jsonl'))
+  fs.copyFileSync(path.join(fixtureDir, 'codex-run.jsonl'), path.join(codexSession, 'rollout-2026-02-01T10-00-00-synthetic.jsonl'))
+  const service = new HarnessLabSessionService({ dshHome, codexSessionsRoot: codexRoot })
+  const runs = await service.listRuns()
+  assert.deepEqual(new Set(runs.map((run) => run.source)), new Set(['deepseek-harness', 'codex']))
+  assert.ok(runs.every((run) => /^[a-f0-9]{24}$/.test(run.runId)))
+  const cross = await service.compare(
+    runs.find((run) => run.source === 'deepseek-harness').runId,
+    runs.find((run) => run.source === 'codex').runId,
+  )
+  assert.equal(cross.summary.tokenComparability, 'not directly comparable')
+})
+
 test('run comparison reports metric deltas and all deterministic divergence classes', () => {
   const comparison = compareRuns(parsed('run-a.jsonl'), parsed('run-b.jsonl'))
   assert.equal(comparison.metricDiffs.total_steps.delta, -13)
@@ -231,6 +310,7 @@ test('comparison marks token metrics unavailable unless both runs report usage',
     delta: null,
     available: false,
     lowerValueRun: null,
+    comparability: 'not directly comparable',
   })
 })
 
@@ -256,7 +336,7 @@ test('missing zstd runtime support is surfaced instead of silently omitting runs
   const descriptor = Object.getOwnPropertyDescriptor(zlib, 'zstdDecompressSync')
   Object.defineProperty(zlib, 'zstdDecompressSync', { ...descriptor, value: undefined })
   try {
-    const service = new HarnessLabSessionService({ dshHome: root })
+    const service = new HarnessLabSessionService({ dshHome: root, codexSessionsRoot: path.join(root, 'missing-codex') })
     await assert.rejects(
       service.listRuns(),
       (error) => error?.code === 'HARNESS_LAB_ZSTD_UNAVAILABLE',
@@ -294,6 +374,6 @@ test('session discovery rejects a symbolic-link sessions root', async (t) => {
   fs.mkdirSync(dshHome)
   fs.copyFileSync(path.join(fixtureDir, 'run-b.jsonl'), path.join(actualSessions, 'session.jsonl'))
   fs.symlinkSync(actualSessions, path.join(dshHome, 'sessions'), process.platform === 'win32' ? 'junction' : 'dir')
-  const service = new HarnessLabSessionService({ dshHome })
+  const service = new HarnessLabSessionService({ dshHome, codexSessionsRoot: path.join(root, 'missing-codex') })
   assert.deepEqual(await service.listRuns(), [])
 })

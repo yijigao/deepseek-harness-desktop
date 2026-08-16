@@ -58,8 +58,8 @@ function analyzeRun(run) {
   }
 
   const failedResults = results.filter((step) => step.success === false)
-  const failedShellResults = failedResults.filter((step) => step.metadata.toolCategory === 'shell')
-  const successfulShellResults = results.filter((step) => step.success === true && step.metadata.toolCategory === 'shell')
+  const failedShellResults = failedResults.filter((step) => ['shell', 'test', 'git'].includes(step.metadata.toolCategory))
+  const successfulShellResults = results.filter((step) => step.success === true && ['shell', 'test', 'git'].includes(step.metadata.toolCategory))
   const recoveries = []
 
   for (const failure of failedShellResults) {
@@ -75,8 +75,8 @@ function analyzeRun(run) {
 
   const firstTestCall = calls.find((step) => step.metadata.testCommand === true) ?? null
   const firstTestCallOrdinal = firstTestCall ? calls.indexOf(firstTestCall) : null
-  const readSearchSteps = calls.filter((step) => ['read', 'search'].includes(step.metadata.toolCategory))
-  const writeSteps = calls.filter((step) => step.metadata.toolCategory === 'write')
+  const readSearchSteps = calls.filter((step) => ['read_file', 'search'].includes(step.metadata.toolCategory))
+  const writeSteps = calls.filter((step) => ['write_file', 'edit_file'].includes(step.metadata.toolCategory))
 
   return {
     calls,
@@ -108,6 +108,11 @@ function calculateMetrics(run) {
     : null
   const totalTokens = hasInputUsage || hasOutputUsage ? (inputTokens ?? 0) + (outputTokens ?? 0) : null
   const explicitErrors = run.steps.filter((step) => step.type === 'error' || step.metadata.terminalError === true).length
+  const toolCategoryCounts = Object.create(null)
+  for (const call of analysis.calls) {
+    const category = call.metadata.toolCategory ?? 'other'
+    toolCategoryCounts[category] = (toolCategoryCounts[category] ?? 0) + 1
+  }
 
   return {
     total_steps: run.steps.filter((step) => step.metadata.lifecycle === 'step/end').length,
@@ -119,15 +124,16 @@ function calculateMetrics(run) {
     unique_tools: tools.size,
     repeated_tool_calls: analysis.repeatedToolCalls,
     duration_ms: Number.isFinite(run.durationMs) ? run.durationMs : null,
-    files_read: analysis.calls.filter((step) => step.metadata.toolCategory === 'read').length,
+    files_read: analysis.calls.filter((step) => step.metadata.toolCategory === 'read_file').length,
     files_written: analysis.writeSteps.length,
-    shell_commands: analysis.calls.filter((step) => step.metadata.toolCategory === 'shell').length,
+    shell_commands: analysis.calls.filter((step) => ['shell', 'test', 'git'].includes(step.metadata.toolCategory)).length,
     failed_shell_commands: analysis.failedShellResults.length,
     retry_count: run.steps.filter((step) => step.metadata.retry === true).length,
     error_count: explicitErrors + analysis.failedResults.length,
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     total_tokens: totalTokens,
+    tool_category_counts: toolCategoryCounts,
   }
 }
 

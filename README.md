@@ -44,6 +44,19 @@ Harness Lab 使用官方上游 session schema 和完全 synthetic fixtures 建�
 > Schema-derived, synthetic-tested, and smoke-validated against a locally
 > generated minimal DeepSeek Harness session.
 
+## Cross-harness comparison
+
+Harness Lab can normalize local execution traces from:
+
+- DeepSeek Harness
+- Codex
+
+into the same canonical trajectory model. This makes it possible to inspect where two harnesses took different paths on the same task. Token totals are marked **not directly comparable** across sources unless their accounting semantics can be proven equivalent.
+
+The controlled cross-harness screenshot and run report are intentionally not included until both harnesses can be executed once from the same clean fixture. Any such screenshot represents one controlled illustrative run on the same small coding task. It is not a statistical benchmark.
+
+Codex trace structure and privacy boundaries are documented in [Codex Session Format Audit](docs/codex-session-format-audit.md). The frozen illustrative fixture and current execution blockers are recorded in [Controlled Cross-harness Experiment](docs/cross-harness-experiment.md).
+
 ## 界面预览
 
 ### 专注的桌面工作区

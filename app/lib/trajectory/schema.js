@@ -33,7 +33,7 @@ function createCanonicalRun(overrides = {}) {
   const status = RUN_STATUSES.includes(overrides.status) ? overrides.status : 'unknown'
   return {
     runId: typeof overrides.runId === 'string' ? overrides.runId : '',
-    source: 'deepseek-harness',
+    source: overrides.source === 'codex' ? 'codex' : 'deepseek-harness',
     sourceVersion: overrides.sourceVersion == null ? null : String(overrides.sourceVersion),
     startedAt: overrides.startedAt ?? null,
     endedAt: overrides.endedAt ?? null,

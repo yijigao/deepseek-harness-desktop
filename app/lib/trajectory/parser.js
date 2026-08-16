@@ -1,9 +1,11 @@
 'use strict'
 
 const { parseDshJsonl } = require('./adapters/dsh-jsonl')
+const { parseCodexJsonl } = require('./adapters/codex-jsonl')
 
 const adapters = Object.freeze({
   'dsh-jsonl': parseDshJsonl,
+  'codex-jsonl': parseCodexJsonl,
 })
 
 function parseRun(input, options = {}) {
