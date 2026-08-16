@@ -2,7 +2,8 @@
 
 Audit date: 2026-08-16
 
-> Schema-derived and synthetic-validated. Real-world session compatibility has not yet been validated against a local user session.
+> Schema-derived, synthetic-tested, and smoke-validated against a locally
+> generated minimal DeepSeek Harness session.
 
 ## Scope and evidence boundary
 

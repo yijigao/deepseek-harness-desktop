@@ -29,7 +29,8 @@ Harness Lab lets you compare two DeepSeek Harness runs side by side and inspect 
 
 Harness Lab 使用官方上游 session schema 和完全 synthetic fixtures 建立 MVP 基线。详细字段、兼容性边界与启发式规则见 [Session Format Audit](docs/session-format-audit.md) 和 [Harness Lab MVP](docs/harness-lab.md)。
 
-> Schema-derived and synthetic-validated. Real-world session compatibility has not yet been validated against a local user session.
+> Schema-derived, synthetic-tested, and smoke-validated against a locally
+> generated minimal DeepSeek Harness session.
 
 ## 界面预览
 

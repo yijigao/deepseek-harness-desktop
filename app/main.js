@@ -296,17 +296,26 @@ async function harnessLabReport(win) {
     summaryCards: document.querySelectorAll('#summary-cards .summary-card').length,
     divergences: document.querySelectorAll('#divergence-list .divergence-card').length,
     compareVisible: !document.getElementById('compare-content')?.hidden,
+    feedback: document.getElementById('runs-feedback')?.textContent,
   }))()`)
+}
+
+function harnessLabDemoDir() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'demo')
+    : path.join(__dirname, 'demo')
 }
 
 async function waitForHarnessLab(win, predicate, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs
+  let lastReport = null
   while (Date.now() <= deadline) {
     const report = await harnessLabReport(win)
+    lastReport = report
     if (predicate(report)) return report
     await delay(100)
   }
-  throw new Error('Harness Lab did not reach the expected state')
+  throw new Error(`Harness Lab did not reach the expected state: ${JSON.stringify(lastReport)}`)
 }
 
 function setupHarnessLabAutomation(win) {
@@ -318,10 +327,13 @@ function setupHarnessLabAutomation(win) {
     try {
       await waitForHarnessLab(win, (report) => report.runRows >= 2)
       await win.webContents.executeJavaScript(`(() => {
-        const rows = [...document.querySelectorAll('#runs-body tr')]
-        if (rows.length >= 2) {
-          rows[0].querySelector('[data-select-side="a"]')?.click()
-          rows[1].querySelector('[data-select-side="b"]')?.click()
+        const selectRun = (rowIndex, side) => document
+          .querySelectorAll('#runs-body tr')[rowIndex]
+          ?.querySelector('[data-select-side="' + side + '"]')
+          ?.click()
+        if (document.querySelectorAll('#runs-body tr').length >= 2) {
+          selectRun(0, 'a')
+          selectRun(1, 'b')
           document.getElementById('compare-selected')?.click()
         }
       })()`)
@@ -539,7 +551,10 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     app.setAppUserModelId(APP_ID)
     Menu.setApplicationMenu(null)
-    harnessLabService = new HarnessLabSessionService({ demoMode: HARNESS_LAB_DEMO })
+    harnessLabService = new HarnessLabSessionService({
+      demoMode: HARNESS_LAB_DEMO,
+      demoDir: harnessLabDemoDir(),
+    })
     if (!app.isPackaged) {
       // Dev convenience: F12 toggles DevTools.
       app.on('web-contents-created', (_event, contents) => {

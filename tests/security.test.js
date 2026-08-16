@@ -70,6 +70,12 @@ test('screenshot automation accepts only a new PNG basename in the temporary dir
   assert.doesNotMatch(main, /writeFileSync\(target, image\.toPNG\(\)\)/)
 })
 
+test('Harness Lab automation re-queries rows after each state-changing selection', () => {
+  const main = read('app/main.js')
+  assert.match(main, /const selectRun = \(rowIndex, side\) => document\s*\.querySelectorAll\('#runs-body tr'\)\[rowIndex\]/)
+  assert.match(main, /selectRun\(0, 'a'\)\s*selectRun\(1, 'b'\)\s*document\.getElementById\('compare-selected'\)\?\.click\(\)/)
+})
+
 test('all committed JSONL fixtures are explicitly synthetic', () => {
   const fixturePaths = [
     'tests/fixtures/run-a.jsonl',
@@ -86,10 +92,11 @@ test('all committed JSONL fixtures are explicitly synthetic', () => {
   }
 })
 
-test('compatibility limitation is stated verbatim in audit and README', () => {
-  const disclaimer = 'Schema-derived and synthetic-validated. Real-world session compatibility has not yet been validated against a local user session.'
-  assert.match(read('docs/session-format-audit.md'), new RegExp(disclaimer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  assert.match(read('README.md'), new RegExp(disclaimer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+test('smoke-validated compatibility claim is stated in audit and README', () => {
+  const claim = 'Schema-derived, synthetic-tested, and smoke-validated against a locally generated minimal DeepSeek Harness session.'
+  for (const file of ['docs/session-format-audit.md', 'README.md']) {
+    assert.ok(read(file).replace(/^>\s?/gm, '').replace(/\s+/g, ' ').includes(claim))
+  }
 })
 
 test('packaging includes trajectory, local UI, preload, and synthetic demo assets', () => {
@@ -97,4 +104,6 @@ test('packaging includes trajectory, local UI, preload, and synthetic demo asset
   for (const entry of ['harness-lab/**/*', 'lib/**/*', 'demo/**/*', 'harness-lab-button.css']) {
     assert.ok(manifest.build.files.includes(entry), entry)
   }
+  assert.ok(manifest.build.asarUnpack.includes('demo/**/*'))
+  assert.match(read('app/main.js'), /app\.asar\.unpacked', 'demo'/)
 })
