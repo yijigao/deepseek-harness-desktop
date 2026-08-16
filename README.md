@@ -1,7 +1,13 @@
 <div align="center">
   <img src="assets/deepseek-whale-225.png" width="88" alt="DeepSeek Harness Desktop logo">
   <h1>DeepSeek Harness Desktop</h1>
-  <p>开箱即用的 DeepSeek Harness Windows 桌面体验</p>
+  <p><strong>Stop benchmarking models. Benchmark the harness.</strong></p>
+  <p>Compare execution trajectories across DeepSeek Harness runs — locally, side by side.</p>
+  <p>
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v1.2.0/DeepSeek-Setup-1.2.0.exe"><strong>Download v1.2.0 for Windows</strong></a>
+    ·
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v1.2.0">Release notes</a>
+  </p>
   <p>
     <img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows" alt="Windows">
     <img src="https://img.shields.io/badge/Electron-43-47848F?logo=electron" alt="Electron 43">
@@ -9,25 +15,29 @@
   </p>
 </div>
 
-DeepSeek Harness Desktop 是一个由社区维护的 Windows 桌面封装。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 完整的 `dsh web` 运行时与 Web GUI 放进独立 Electron 窗口，让用户像使用普通桌面软件一样启动 Harness，无需每次打开终端、输入命令或手动管理后台进程。
-
-> [!IMPORTANT]
-> 这是社区项目，不是 DeepSeek 官方桌面客户端，也不代表 DeepSeek 官方立场。
-
-## Harness Lab
-
-> **Stop benchmarking models. Benchmark the harness.**
-
-Harness Lab lets you compare two DeepSeek Harness runs side by side and inspect differences in tool usage, retries, failures, file churn, and execution efficiency.
+Harness Lab 让你在同一视图中比较两个 run 的执行轨迹：不只看最终答案，还能直接看到 agent 如何完成任务、付出了多少执行成本，以及差异发生在哪里。
 
 ![Harness Lab Compare](assets/screenshots/harness-lab-compare.png)
 
-它是独立于 Harness Web 工作区的本地 Desktop UI，第一版包含：
+> 截图展示内置 Demo Mode 的 **synthetic comparison**。Run A / Run B 数字均为合成 fixture 数据，只用于演示比较流程；它们不是模型性能 benchmark，也不代表任何性能提升。
 
-- **Runs**：扫描 `DSH_HOME/sessions`，按最新时间列出经过净化的运行指标，并选择 Run A / Run B。
-- **Compare**：对照 Duration、Steps、Tool Calls、Failures、Retries 和 Tokens，展示可解释的确定性轨迹差异。
-- **隐私默认值**：不展示 Prompt 原文、工具输出、Shell 命令、原始参数、真实 session id 或绝对路径。
-- **只读架构**：session 文件只在 Electron main process 中读取；renderer 只获得严格限定的查询 API。
+## Harness Lab
+
+**Compare execution trajectories** and inspect:
+
+- **Steps / tool calls / retries / failures** — quantify execution effort and reliability.
+- **Repeated tool loops** — surface duplicated calls detected by deterministic rules.
+- **Failed commands** — show command failures and whether a run recovered.
+- **Unnecessary file churn** — compare extra file reads, writes, and search paths.
+- **Test timing / failure recovery** — see when tests ran and how each run behaved after failure.
+- **Local-first privacy** — parsing stays on the local machine; the UI receives sanitized metrics and summaries, not raw prompts, credentials, or absolute paths.
+
+Runs discovers recent sessions and lets you select Run A / Run B. Compare places Duration, Steps, Tool Calls, Failures, Retries, and Tokens beside explainable trajectory divergences.
+
+DeepSeek Harness Desktop 是一个由社区维护的 Windows 桌面封装。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 完整的 `dsh web` 运行时与 Web GUI 放进独立 Electron 窗口；Harness Lab 则作为独立的本地 Desktop UI 与 Harness Web 并列运行。
+
+> [!IMPORTANT]
+> 这是社区项目，不是 DeepSeek 官方桌面客户端，也不代表 DeepSeek 官方立场。
 
 Harness Lab 使用官方上游 session schema 和完全 synthetic fixtures 建立 MVP 基线。详细字段、兼容性边界与启发式规则见 [Session Format Audit](docs/session-format-audit.md) 和 [Harness Lab MVP](docs/harness-lab.md)。
 
