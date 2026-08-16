@@ -1,0 +1,18 @@
+#cc-titlebar .cc-lab {
+  -webkit-app-region: no-drag;
+  height: 26px;
+  margin-left: 10px;
+  padding: 0 11px;
+  border: 1px solid rgba(217, 119, 87, 0.36);
+  border-radius: 7px;
+  color: #e7b09a;
+  background: rgba(217, 119, 87, 0.1);
+  font: 600 11px/1 'Segoe UI', sans-serif;
+  cursor: pointer;
+}
+
+#cc-titlebar .cc-lab:hover {
+  border-color: rgba(217, 119, 87, 0.65);
+  color: #faf9f5;
+  background: rgba(217, 119, 87, 0.2);
+}

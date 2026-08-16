@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'">
+    <title>Harness Lab</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="renderer.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand-lockup">
+          <div class="brand-glyph" aria-hidden="true">✦</div>
+          <div>
+            <p class="eyebrow">LOCAL RUN INSPECTOR</p>
+            <h1>Harness Lab</h1>
+            <p class="app-subtitle">Trace, compare, and understand your harness runs.</p>
+          </div>
+        </div>
+        <div class="connection-state" aria-label="Connection status">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span>Local archive</span>
+        </div>
+      </header>
+
+      <nav class="tab-bar" aria-label="Harness Lab sections" role="tablist">
+        <button id="tab-runs" class="tab-button is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-runs">
+          <span>Runs</span>
+          <span id="runs-count" class="tab-count" aria-label="run count">—</span>
+        </button>
+        <button id="tab-compare" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="panel-compare" tabindex="-1">
+          <span>Compare</span>
+          <span id="compare-tab-state" class="tab-hint">Select two</span>
+        </button>
+      </nav>
+
+      <main class="content-area">
+        <section id="panel-runs" class="tab-panel" role="tabpanel" aria-labelledby="tab-runs">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">RUN CATALOG</p>
+              <h2>Recent runs</h2>
+              <p class="section-description">Choose two sanitized run summaries to inspect their trajectories side by side.</p>
+            </div>
+            <button id="refresh-runs" class="button button-secondary" type="button">
+              <span class="button-icon" aria-hidden="true">↻</span>
+              <span>Refresh runs</span>
+            </button>
+          </div>
+
+          <div id="runs-feedback" class="feedback" role="status" aria-live="polite" hidden></div>
+
+          <div class="selection-strip" aria-label="Comparison selection">
+            <div class="selection-copy">
+              <span class="selection-label">COMPARE</span>
+              <span class="selection-explainer">Mark one run as A and another as B.</span>
+            </div>
+            <div class="selection-pills">
+              <div id="selection-a" class="selection-pill selection-pill-a">
+                <span class="selection-letter">A</span>
+                <span id="selection-a-name" class="selection-name">Not selected</span>
+              </div>
+              <span class="selection-vs" aria-hidden="true">vs</span>
+              <div id="selection-b" class="selection-pill selection-pill-b">
+                <span class="selection-letter">B</span>
+                <span id="selection-b-name" class="selection-name">Not selected</span>
+              </div>
+              <button id="compare-selected" class="button button-primary" type="button" disabled>
+                <span>Compare selected</span>
+                <span class="button-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="runs-empty" class="empty-state" hidden>
+            <div class="empty-icon" aria-hidden="true">◌</div>
+            <h3>No runs yet</h3>
+            <p>When the local archive has a run summary, it will appear here.</p>
+            <button id="refresh-empty" class="button button-secondary" type="button">Refresh archive</button>
+          </div>
+
+          <div id="runs-table-wrap" class="table-wrap">
+            <table class="runs-table">
+              <caption class="sr-only">Sanitized harness run summaries</caption>
+              <thead>
+                <tr>
+                  <th class="select-column" scope="col"><span class="sr-only">Select</span></th>
+                  <th scope="col">Started</th>
+                  <th scope="col">Model</th>
+                  <th scope="col">Duration</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" class="numeric-column">Steps</th>
+                  <th scope="col" class="numeric-column">Tool calls</th>
+                  <th scope="col" class="numeric-column">Errors</th>
+                </tr>
+              </thead>
+              <tbody id="runs-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="panel-compare" class="tab-panel" role="tabpanel" aria-labelledby="tab-compare" hidden>
+          <div class="panel-heading compare-heading">
+            <div>
+              <p class="section-kicker">TRAJECTORY REVIEW</p>
+              <h2>Run A <span class="heading-vs">vs</span> Run B</h2>
+              <p class="section-description">A compact, sanitized view of where two executions agree and diverge.</p>
+            </div>
+            <div class="compare-heading-actions">
+              <div id="compare-run-pair" class="heading-pair" aria-label="Selected runs"></div>
+              <button id="run-comparison" class="button button-primary" type="button" disabled>
+                <span class="button-icon" aria-hidden="true">⌁</span>
+                <span>Run comparison</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="compare-feedback" class="feedback" role="status" aria-live="polite" hidden></div>
+
+          <div id="compare-empty" class="compare-empty empty-state">
+            <div class="empty-icon compare-empty-icon" aria-hidden="true">A/B</div>
+            <h3>Pick two runs to begin</h3>
+            <p>Return to Runs, choose distinct A and B summaries, then start a comparison.</p>
+            <button id="open-runs" class="button button-secondary" type="button">Open runs</button>
+          </div>
+
+          <div id="compare-content" hidden>
+            <div id="summary-cards" class="summary-cards" aria-label="Comparison summary"></div>
+
+            <div class="compare-grid">
+              <section class="divergence-panel" aria-labelledby="divergence-title">
+                <div class="subpanel-heading">
+                  <div>
+                    <p class="section-kicker">PATH ANALYSIS</p>
+                    <h3 id="divergence-title">Trajectory Divergence</h3>
+                  </div>
+                  <span id="divergence-count" class="count-badge">—</span>
+                </div>
+                <div id="divergence-list" class="divergence-list"></div>
+              </section>
+
+              <aside class="metric-panel" aria-labelledby="metric-diff-title">
+                <div class="subpanel-heading">
+                  <div>
+                    <p class="section-kicker">DELTA VIEW</p>
+                    <h3 id="metric-diff-title">Metric diffs</h3>
+                  </div>
+                </div>
+                <div id="metric-diffs" class="metric-diffs"></div>
+              </aside>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <span>Harness Lab</span>
+        <span class="footer-separator" aria-hidden="true">•</span>
+        <span>Sanitized summaries only</span>
+      </footer>
+    </div>
+  </body>
+</html>

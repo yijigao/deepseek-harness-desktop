@@ -14,6 +14,8 @@ const fs = require('node:fs')
 const os = require('node:os')
 const net = require('node:net')
 const http = require('node:http')
+const { pathToFileURL } = require('node:url')
+const { HarnessLabSessionService } = require('./lib/harness-lab/session-service')
 
 const PRODUCT = 'DeepSeek'
 const APP_ID = 'com.deepseek.desktop'
@@ -21,13 +23,31 @@ const WINDOW_BG = '#1f1e1d'
 const LOG_PATH = path.join(os.tmpdir(), 'deepseek-desktop.log')
 
 let mainWindow = null
+let harnessLabWindow = null
+let harnessLabService = null
 let serverChild = null
 let stopping = false
+const HARNESS_LAB_DEMO = process.env.HARNESS_LAB_DEMO === '1' || process.argv.includes('--demo-harness-lab')
 
 function log(line) {
   const text = `[${new Date().toISOString()}] ${line}\n`
   try { fs.appendFileSync(LOG_PATH, text) } catch {}
   if (!app.isPackaged) process.stdout.write(text)
+}
+
+function screenshotTarget(shotArg) {
+  const requested = shotArg.slice('--shot='.length)
+  if (
+    requested !== path.basename(requested)
+    || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,95}\.png$/i.test(requested)
+  ) {
+    throw new Error('Screenshot name must be a simple PNG filename')
+  }
+  return path.join(app.getPath('temp'), requested)
+}
+
+function writeScreenshot(target, image) {
+  fs.writeFileSync(target, image.toPNG(), { flag: 'wx', mode: 0o600 })
 }
 
 function resolveRuntimeRoot() {
@@ -143,8 +163,10 @@ function startServer(port) {
 function injectDesktopFrame(win) {
   const inject = () => {
     const themeCss = readInjected('claude-theme.css')
+    const harnessLabButtonCss = readInjected('harness-lab-button.css')
     const titlebarJs = readInjected('titlebar.js')
     if (themeCss) win.webContents.insertCSS(themeCss, { cssOrigin: 'author' }).catch(() => {})
+    if (harnessLabButtonCss) win.webContents.insertCSS(harnessLabButtonCss, { cssOrigin: 'author' }).catch(() => {})
     const forceDark = `(() => {
       const ensure = () => {
         if (document.body && !document.body.hasAttribute('data-ds-dark-theme')) {
@@ -208,6 +230,141 @@ async function createWindow(port) {
 
   injectDesktopFrame(mainWindow)
   await mainWindow.loadURL(base)
+}
+
+function isTrustedSender(event, win) {
+  return Boolean(
+    win
+    && !win.isDestroyed()
+    && event.sender === win.webContents
+    && event.senderFrame === win.webContents.mainFrame
+  )
+}
+
+async function createHarnessLabWindow() {
+  if (harnessLabWindow && !harnessLabWindow.isDestroyed()) {
+    if (harnessLabWindow.isMinimized()) harnessLabWindow.restore()
+    harnessLabWindow.show()
+    harnessLabWindow.focus()
+    return harnessLabWindow
+  }
+
+  harnessLabWindow = new BrowserWindow({
+    width: 1320,
+    height: 860,
+    minWidth: 920,
+    minHeight: 620,
+    show: false,
+    backgroundColor: '#111214',
+    icon: iconPath(),
+    title: 'Harness Lab',
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      spellcheck: false,
+      partition: 'harness-lab',
+      preload: path.join(__dirname, 'harness-lab', 'preload.js'),
+    },
+  })
+
+  const labHtml = path.join(__dirname, 'harness-lab', 'index.html')
+  const labUrl = pathToFileURL(labHtml).href
+  harnessLabWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  harnessLabWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== labUrl) event.preventDefault()
+  })
+  harnessLabWindow.webContents.on('will-attach-webview', (event) => event.preventDefault())
+  harnessLabWindow.webContents.session.setPermissionCheckHandler(() => false)
+  harnessLabWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+  harnessLabWindow.once('ready-to-show', () => harnessLabWindow?.show())
+  harnessLabWindow.on('closed', () => { harnessLabWindow = null })
+  await harnessLabWindow.loadFile(labHtml)
+  return harnessLabWindow
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function harnessLabReport(win) {
+  return win.webContents.executeJavaScript(`(() => ({
+    title: document.querySelector('h1')?.textContent,
+    runRows: document.querySelectorAll('#runs-body tr').length,
+    summaryCards: document.querySelectorAll('#summary-cards .summary-card').length,
+    divergences: document.querySelectorAll('#divergence-list .divergence-card').length,
+    compareVisible: !document.getElementById('compare-content')?.hidden,
+  }))()`)
+}
+
+async function waitForHarnessLab(win, predicate, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() <= deadline) {
+    const report = await harnessLabReport(win)
+    if (predicate(report)) return report
+    await delay(100)
+  }
+  throw new Error('Harness Lab did not reach the expected state')
+}
+
+function setupHarnessLabAutomation(win) {
+  const verify = process.argv.includes('--verify-harness-lab')
+  const shotArg = process.argv.find((arg) => arg.startsWith('--shot='))
+  if (!verify && !shotArg) return
+
+  void (async () => {
+    try {
+      await waitForHarnessLab(win, (report) => report.runRows >= 2)
+      await win.webContents.executeJavaScript(`(() => {
+        const rows = [...document.querySelectorAll('#runs-body tr')]
+        if (rows.length >= 2) {
+          rows[0].querySelector('[data-select-side="a"]')?.click()
+          rows[1].querySelector('[data-select-side="b"]')?.click()
+          document.getElementById('compare-selected')?.click()
+        }
+      })()`)
+      const report = await waitForHarnessLab(win, (candidate) => (
+        candidate.compareVisible && candidate.summaryCards === 6 && candidate.divergences >= 4
+      ))
+      const ok = report.title === 'Harness Lab'
+        && report.runRows === 2
+        && report.summaryCards === 6
+        && report.divergences >= 4
+        && report.compareVisible
+      if (verify) {
+        console.log(`HARNESS-LAB-VERIFY ${JSON.stringify(report)}`)
+        process.exitCode = ok ? 0 : 1
+      }
+      if (shotArg) {
+        const target = screenshotTarget(shotArg)
+        const image = await win.webContents.capturePage()
+        writeScreenshot(target, image)
+        log(`Harness Lab screenshot written to temporary file: ${path.basename(target)}`)
+      }
+    } catch (error) {
+      process.exitCode = 1
+      log(`Harness Lab automation failed: ${String(error && error.message ? error.message : error)}`)
+    }
+    app.quit()
+  })()
+}
+
+function harnessLabHandler(operation) {
+  return async (event, ...args) => {
+    if (!isTrustedSender(event, harnessLabWindow) || !harnessLabService) {
+      throw new Error('Harness Lab request denied')
+    }
+    try {
+      return await operation(harnessLabService, ...args)
+    } catch (error) {
+      if (error?.code === 'HARNESS_LAB_ZSTD_UNAVAILABLE') {
+        throw new Error('Harness Lab cannot read compressed sessions in this runtime')
+      }
+      throw new Error('Harness Lab request failed')
+    }
+  }
 }
 
 // ---- GitHub version check (major-version updates only) ---------------------
@@ -350,9 +507,10 @@ if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
+    const targetWindow = HARNESS_LAB_DEMO ? harnessLabWindow : mainWindow
+    if (targetWindow) {
+      if (targetWindow.isMinimized()) targetWindow.restore()
+      targetWindow.focus()
     }
   })
 
@@ -365,12 +523,23 @@ if (!gotLock) {
   })
   ipcMain.on('cc:close', () => mainWindow?.close())
   ipcMain.handle('cc:isMax', () => mainWindow?.isMaximized() ?? false)
+  ipcMain.on('cc:open-harness-lab', (event) => {
+    if (!isTrustedSender(event, mainWindow)) return
+    createHarnessLabWindow().catch(() => {
+      dialog.showErrorBox('Harness Lab', 'Could not open the local Harness Lab window.')
+    })
+  })
+
+  ipcMain.handle('harness-lab:list-runs', harnessLabHandler((service) => service.listRuns()))
+  ipcMain.handle('harness-lab:get-run', harnessLabHandler((service, runId) => service.getRun(runId)))
+  ipcMain.handle('harness-lab:compare-runs', harnessLabHandler((service, runAId, runBId) => service.compare(runAId, runBId)))
 
   // ---- lifecycle -------------------------------------------------------------
 
   app.whenReady().then(async () => {
     app.setAppUserModelId(APP_ID)
     Menu.setApplicationMenu(null)
+    harnessLabService = new HarnessLabSessionService({ demoMode: HARNESS_LAB_DEMO })
     if (!app.isPackaged) {
       // Dev convenience: F12 toggles DevTools.
       app.on('web-contents-created', (_event, contents) => {
@@ -381,6 +550,19 @@ if (!gotLock) {
           }
         })
       })
+    }
+
+    if (HARNESS_LAB_DEMO) {
+      try {
+        const win = await createHarnessLabWindow()
+        setupHarnessLabAutomation(win)
+        log('Harness Lab demo ready')
+      } catch (error) {
+        log(`Harness Lab demo startup failed: ${String(error && error.message ? error.message : error)}`)
+        dialog.showErrorBox('Harness Lab', 'Could not start Harness Lab demo mode.')
+        app.quit()
+      }
+      return
     }
 
     let port
@@ -416,16 +598,18 @@ if (!gotLock) {
       if (result.updateAvailable) await offerUpdate(result)
     }, 12000)
 
-    // --shot=<path>: capture a screenshot and exit (visual aid).
+    // --shot=<filename.png>: capture into the OS temporary directory without
+    // following or replacing an existing destination.
     const shotArg = process.argv.find((arg) => arg.startsWith('--shot='))
     if (shotArg) {
-      const target = shotArg.slice('--shot='.length)
       setTimeout(async () => {
         try {
+          const target = screenshotTarget(shotArg)
           const image = await mainWindow.webContents.capturePage()
-          fs.writeFileSync(target, image.toPNG())
-          log(`screenshot written: ${target}`)
+          writeScreenshot(target, image)
+          log(`screenshot written to temporary file: ${path.basename(target)}`)
         } catch (error) {
+          process.exitCode = 1
           log(`screenshot failed: ${error}`)
         }
         app.quit()
