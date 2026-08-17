@@ -13,6 +13,7 @@ const {
   sanitizeMetadata,
 } = require('./redaction')
 const { calculateMetrics } = require('./metrics')
+const { isTestCommand, normalizeToolCategory } = require('./tool-categories')
 
 const PACKED_STORAGE_TYPES = new Set(['text-chunks', 'reasoning-chunks', 'tool-call-chunks'])
 const VOLATILE_ARGUMENT_KEYS = new Set(['callid', 'requestid', 'timestamp', 'nonce', 'timeout', 'timeoutms'])
@@ -68,26 +69,6 @@ function normalizedToolName(value) {
   return safe || 'unknown-tool'
 }
 
-function baseToolName(tool) {
-  return tool.toLowerCase().split(/[./:]/).filter(Boolean).at(-1) || tool.toLowerCase()
-}
-
-function editorOperation(args) {
-  return String(args.command ?? args.operation ?? args.action ?? '').toLowerCase()
-}
-
-function toolCategory(tool, args) {
-  const name = baseToolName(tool)
-  if (['bash', 'pwsh', 'powershell'].includes(name)) return 'shell'
-  if (['read', 'read_image'].includes(name)) return 'read'
-  if (['glob', 'grep', 'search', 'find'].includes(name)) return 'search'
-  if (['write', 'edit', 'apply_patch'].includes(name)) return 'write'
-  if (name === 'str_replace_editor') {
-    return ['view', 'read'].includes(editorOperation(args)) ? 'read' : 'write'
-  }
-  return 'other'
-}
-
 function collectPathBasenames(value, parentKey = '', output = new Set(), depth = 0) {
   if (depth > 5 || value == null) return output
   const key = parentKey.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -105,18 +86,6 @@ function collectPathBasenames(value, parentKey = '', output = new Set(), depth =
     }
   }
   return output
-}
-
-function shellCommand(args) {
-  for (const key of ['command', 'cmd', 'script']) {
-    if (typeof args[key] === 'string') return args[key]
-  }
-  return ''
-}
-
-function isTestCommand(args) {
-  const command = shellCommand(args)
-  return /(?:^|\s)(?:npm\s+(?:run\s+)?test(?::[\w-]+)?|pnpm\s+(?:run\s+)?test(?::[\w-]+)?|yarn\s+test(?::[\w-]+)?|bun\s+test(?::[\w-]+)?|pytest|vitest|jest|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\w*\s+test)(?:\s|$)/i.test(command)
 }
 
 function extractCallId(data) {
@@ -270,13 +239,13 @@ function normalizeDshRecords(parsed, options = {}) {
     if (type === 'tool_call') {
       tool = normalizedToolName(data.name ?? data.tool ?? data.toolName)
       const args = parseArguments(data.arguments ?? data.args ?? data.input)
-      const category = toolCategory(tool, args)
+      const category = normalizeToolCategory(tool, args)
       const signature = argumentSignature(tool, args)
       const callId = extractCallId(data)
       metadata.callSignature = signature
       metadata.toolCategory = category
       metadata.pathBasenames = [...collectPathBasenames(args)].sort()
-      metadata.testCommand = category === 'shell' && isTestCommand(args)
+      metadata.testCommand = category === 'test'
       if (callId != null) metadata.callIdHash = sha256(callId).slice(0, 16)
       const callInfo = {
         callId: callId == null ? null : String(callId),
@@ -301,13 +270,13 @@ function normalizeDshRecords(parsed, options = {}) {
         metadata.callSignature = callInfo.signature
         metadata.relatedCallIndex = callInfo.stepIndex
         metadata.toolCategory = callInfo.category
-        metadata.testCommand = callInfo.category === 'shell' && Boolean(steps[callInfo.stepIndex]?.metadata.testCommand)
+        metadata.testCommand = callInfo.category === 'test' && Boolean(steps[callInfo.stepIndex]?.metadata.testCommand)
         if (durationMs == null && timestamp && callInfo.timestamp) {
           durationMs = Math.max(0, Date.parse(timestamp) - Date.parse(callInfo.timestamp))
         }
       } else {
         tool = normalizedToolName(data.name ?? data.tool ?? data.toolName)
-        metadata.toolCategory = toolCategory(tool, {})
+        metadata.toolCategory = normalizeToolCategory(tool, {})
       }
       if (callId != null) metadata.callIdHash = sha256(callId).slice(0, 16)
       success = !(hasStructuredFailure(data) || contentIndicatesFailure(data))
@@ -365,6 +334,6 @@ module.exports = {
   isTestCommand,
   normalizeDshRecords,
   parseArguments,
-  toolCategory,
+  toolCategory: normalizeToolCategory,
   toIso,
 }

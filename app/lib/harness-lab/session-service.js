@@ -8,7 +8,8 @@ const path = require('node:path')
 const { parseRun } = require('../trajectory/parser')
 const { compareRuns } = require('../trajectory/compare')
 
-const SESSION_FILES = new Set(['session.jsonl', 'session.jsonl.zstd'])
+const DSH_SESSION_FILES = new Set(['session.jsonl', 'session.jsonl.zstd'])
+const CODEX_SESSION_FILE = /^rollout-[A-Za-z0-9T:._+\-]+\.jsonl$/
 const PUBLIC_METRICS = Object.freeze([
   'total_steps',
   'user_messages',
@@ -28,6 +29,7 @@ const PUBLIC_METRICS = Object.freeze([
   'input_tokens',
   'output_tokens',
   'total_tokens',
+  'tool_category_counts',
 ])
 
 function opaqueId(filePath) {
@@ -43,6 +45,10 @@ function resolveDshHome(configured) {
     return path.resolve(path.join(os.homedir(), selected.slice(2)))
   }
   return path.resolve(selected)
+}
+
+function resolveCodexSessionsRoot(homeDirectory = os.homedir()) {
+  return path.resolve(path.join(homeDirectory, '.codex', 'sessions'))
 }
 
 function isWithinRoot(candidate, root) {
@@ -120,7 +126,10 @@ function publicRun(run, includeSteps = true) {
 class HarnessLabSessionService {
   constructor(options = {}) {
     const dshHome = resolveDshHome(options.dshHome ?? process.env.DSH_HOME)
-    this.sessionsRoot = path.join(dshHome, 'sessions')
+    this.sessionsRoots = [
+      { format: 'dsh-jsonl', root: path.join(dshHome, 'sessions'), accepts: (name) => DSH_SESSION_FILES.has(name) },
+      { format: 'codex-jsonl', root: options.codexSessionsRoot ?? resolveCodexSessionsRoot(), accepts: (name) => CODEX_SESSION_FILE.test(name) },
+    ]
     this.demoMode = Boolean(options.demoMode)
     this.demoDir = options.demoDir || path.join(__dirname, '..', '..', 'demo')
     this.maxFiles = options.maxFiles ?? 100
@@ -130,7 +139,7 @@ class HarnessLabSessionService {
     this.cache = new Map()
   }
 
-  async collectSessionFiles(directory, rootInfo, depth = 0, output = []) {
+  async collectSessionFiles(directory, rootInfo, accepts, depth = 0, output = []) {
     if (depth > this.maxDepth || output.length >= this.maxFiles * 4) return output
     let entries
     try {
@@ -150,8 +159,8 @@ class HarnessLabSessionService {
       if (entry.isSymbolicLink()) continue
       const candidate = path.join(directory, entry.name)
       if (entry.isDirectory()) {
-        await this.collectSessionFiles(candidate, rootInfo, depth + 1, output)
-      } else if (entry.isFile() && SESSION_FILES.has(entry.name)) {
+        await this.collectSessionFiles(candidate, rootInfo, accepts, depth + 1, output)
+      } else if (entry.isFile() && accepts(entry.name)) {
         output.push(candidate)
       }
     }
@@ -159,32 +168,38 @@ class HarnessLabSessionService {
   }
 
   async discoverFiles() {
-    const selectedRoot = this.demoMode ? this.demoDir : this.sessionsRoot
-    const rootInfo = await safeDirectoryRoot(selectedRoot)
-    if (!rootInfo) return []
-    const rootReal = rootInfo.realPath
     if (this.demoMode) {
+      const rootInfo = await safeDirectoryRoot(this.demoDir)
+      if (!rootInfo) return []
+      const rootReal = rootInfo.realPath
       return ['run-a.jsonl', 'run-b.jsonl'].map((name) => ({
         filePath: path.join(rootReal, name),
+        format: 'dsh-jsonl',
         rootBirthtimeMs: rootInfo.birthtimeMs,
         rootDev: rootInfo.dev,
         rootIno: rootInfo.ino,
         rootReal: rootInfo.realPath,
       }))
     }
-    const files = await this.collectSessionFiles(rootReal, rootInfo)
     const stats = []
-    for (const filePath of files) {
-      try {
-        const stat = await fs.lstat(filePath)
-        if (stat.isSymbolicLink() || !stat.isFile() || stat.size > this.maxFileBytes) continue
-        const fileReal = await fs.realpath(filePath)
-        if (isWithinRoot(fileReal, rootReal)) stats.push({ filePath: fileReal, rootInfo, stat })
-      } catch {}
+    for (const source of this.sessionsRoots) {
+      const rootInfo = await safeDirectoryRoot(source.root)
+      if (!rootInfo) continue
+      const rootReal = rootInfo.realPath
+      const files = await this.collectSessionFiles(rootReal, rootInfo, source.accepts)
+      for (const filePath of files) {
+        try {
+          const stat = await fs.lstat(filePath)
+          if (stat.isSymbolicLink() || !stat.isFile() || stat.size > this.maxFileBytes) continue
+          const fileReal = await fs.realpath(filePath)
+          if (isWithinRoot(fileReal, rootReal)) stats.push({ filePath: fileReal, format: source.format, rootInfo, stat })
+        } catch {}
+      }
     }
     stats.sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs)
-    return stats.slice(0, this.maxFiles).map(({ filePath, rootInfo: safeRoot }) => ({
+    return stats.slice(0, this.maxFiles).map(({ filePath, format, rootInfo: safeRoot }) => ({
       filePath,
+      format,
       rootBirthtimeMs: safeRoot.birthtimeMs,
       rootDev: safeRoot.dev,
       rootIno: safeRoot.ino,
@@ -193,7 +208,7 @@ class HarnessLabSessionService {
   }
 
   async loadFile(entry) {
-    const { filePath, rootBirthtimeMs, rootDev, rootIno, rootReal } = entry
+    const { filePath, format, rootBirthtimeMs, rootDev, rootIno, rootReal } = entry
     const resolvedFile = path.resolve(filePath)
     const resolvedRoot = path.resolve(rootReal)
     if (!isWithinRoot(resolvedFile, resolvedRoot)) throw new Error('Session file is not readable')
@@ -230,6 +245,7 @@ class HarnessLabSessionService {
       ) return cached.run
       const contents = await handle.readFile()
       const run = parseRun(contents, {
+        format,
         fileName: path.basename(currentReal),
         identitySeed: runId,
         runId,
@@ -300,6 +316,7 @@ module.exports = {
   opaqueId,
   publicRun,
   resolveDshHome,
+  resolveCodexSessionsRoot,
   safeDirectoryRoot,
   sameIdentity,
 }

@@ -32,6 +32,12 @@ function metricDiff(metric, runA, runB) {
   }
 }
 
+function tokenComparable(runA, runB) {
+  return runA.source === runB.source
+    && Number.isFinite(runA.metrics.total_tokens)
+    && Number.isFinite(runB.metrics.total_tokens)
+}
+
 function addDivergence(list, type, severity, run, stepIndexes, message) {
   list.push({
     type,
@@ -166,6 +172,7 @@ function publicRunSummary(run, label) {
   return {
     label: `Run ${label}`,
     runId: run.runId,
+    source: run.source,
     startedAt: run.startedAt,
     model: run.model,
     workspace: run.workspace,
@@ -177,6 +184,11 @@ function compareRuns(runA, runB) {
   if (!runA || !runB) throw new TypeError('Two canonical runs are required')
   const metricDiffs = {}
   for (const [metric] of METRICS) metricDiffs[metric] = metricDiff(metric, runA, runB)
+  if (!tokenComparable(runA, runB)) {
+    metricDiffs.total_tokens = { ...metricDiffs.total_tokens, delta: null, available: false, lowerValueRun: null, comparability: 'not directly comparable' }
+  } else {
+    metricDiffs.total_tokens.comparability = 'comparable within source'
+  }
 
   const analysisA = analyzeRun(runA)
   const analysisB = analyzeRun(runB)
@@ -193,6 +205,7 @@ function compareRuns(runA, runB) {
       runA: publicRunSummary(runA, 'A'),
       runB: publicRunSummary(runB, 'B'),
       efficiencySignals: efficiencySignals(metricDiffs),
+      tokenComparability: metricDiffs.total_tokens.comparability,
     },
     metricDiffs,
     divergences,

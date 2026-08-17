@@ -45,6 +45,9 @@ test('Harness Lab renderer is static, local, and has no Node or arbitrary networ
   assert.doesNotMatch(renderer, /\b(?:fetch|XMLHttpRequest|WebSocket|eval)\s*\(/)
   assert.doesNotMatch(renderer, /\.innerHTML\s*=/)
   assert.doesNotMatch(renderer, /\.workspace\b/)
+  assert.match(renderer, /DeepSeek Harness/)
+  assert.match(renderer, /Codex/)
+  assert.match(renderer, /not directly comparable/)
 })
 
 test('session service uses opaque registry IDs rather than renderer-provided paths', () => {
@@ -54,7 +57,7 @@ test('session service uses opaque registry IDs rather than renderer-provided pat
   assert.doesNotMatch(service, /readFile\(runId/)
   assert.doesNotMatch(service, /resolve\(runId/)
   assert.match(service, /entry\.isSymbolicLink\(\)/)
-  assert.match(service, /safeDirectoryRoot\(selectedRoot\)/)
+  assert.match(service, /safeDirectoryRoot\(source\.root\)/)
   assert.match(service, /sameIdentity\(before, after\)/)
   assert.match(service, /sameIdentity\(rootAfter, expectedRoot\)/)
   assert.match(service, /O_NOFOLLOW/)
@@ -84,11 +87,14 @@ test('all committed JSONL fixtures are explicitly synthetic', () => {
     'tests/fixtures/run-secret-redaction.jsonl',
     'app/demo/run-a.jsonl',
     'app/demo/run-b.jsonl',
+    'tests/fixtures/codex-run.jsonl',
+    'tests/fixtures/codex-unknown-secret.jsonl',
   ]
   for (const fixturePath of fixturePaths) {
     const header = JSON.parse(read(fixturePath).split(/\r?\n/, 1)[0])
-    assert.match(header.id, /^synthetic-/)
-    assert.match(header.cwd, /synthetic/i)
+    const metadata = header.type === 'session_meta' ? header.payload : header
+    assert.match(metadata.id, /^synthetic-/)
+    assert.match(metadata.cwd, /synthetic/i)
   }
 })
 
