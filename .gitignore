@@ -15,6 +15,10 @@ update-cache.json
 *.db
 *.sqlite*
 
+# Subscription OAuth tokens and adapter rollback backups (never commit)
+oauth-credentials.json
+*.oauth-bak
+
 # Secrets and signing material
 .env
 .env.*

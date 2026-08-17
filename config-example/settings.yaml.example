@@ -1,0 +1,44 @@
+# DeepSeek Harness 用户设置示例 — 把需要的段落合并进
+# $DSH_HOME/settings.yaml（默认 %USERPROFILE%\.dsh\settings.yaml），热生效，无需重启。
+# 本文件不含任何真实凭据：API Key 写在 $DSH_HOME/.credentials.yaml 或 .env，
+# 由 apiKeyEnv 引用（按请求解析，绝不进入本文件）。
+
+# ── 默认模型路由：新建 Agent 时使用的 provider/model ─────────────────────────
+agent-default-model:
+  provider: deepseek-official
+  model: deepseek-v4-flash
+  reasoningEffort: high
+
+# ── 权限预设（可选）──────────────────────────────────────────────────────────
+# danger-full-access = 不弹批准框；workspace-write = 默认沙箱 + 弹框确认。
+# permission:
+#   defaultPreset: danger-full-access
+
+# ── 通用多提供商适配器（@deepseek-ai/dsh-llm-pi-ai，默认休眠挂载）─────────────
+# 一旦出现 llm-pi-ai: 段，providers 下的路由实时注册（无需重启）；段清空则移除。
+llm-pi-ai:
+  providers:
+    # ── ChatGPT 订阅路由（需要先打补丁并登录，见 config-example/README.md）──
+    openai-codex:
+      modelOverrides:
+        gpt-5.3-codex-spark: { input: [ text, image ] }
+        gpt-5.4: { input: [ text, image ] }
+        gpt-5.4-mini: { input: [ text, image ] }
+        gpt-5.5: { input: [ text, image ] }
+        gpt-5.6-luna: { input: [ text, image ] }
+        gpt-5.6-sol: { input: [ text, image ] }
+        gpt-5.6-terra: { input: [ text, image ] }
+
+    # ── 示例：豆包（火山方舟），OpenAI 兼容端点 ──────────────────────────────
+    # 取消注释并填入你的推理接入点 ID；API Key 写入
+    # $DSH_HOME/.credentials.yaml（ARK_API_KEY: sk-...）或 .env。
+    # volcark:
+    #   displayName: 火山方舟豆包
+    #   apiKeyEnv: ARK_API_KEY
+    #   api: openai-completions
+    #   baseURL: https://ark.cn-beijing.volces.com/api/v3
+    #   models:
+    #     - id: ep-xxxxxxxx        # 方舟控制台的 Endpoint ID，或模型名（如 doubao-seed-2-1-pro）
+    #       name: 豆包 2.1 Pro
+    #       contextWindow: 128000
+    #       maxTokens: 8192

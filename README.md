@@ -65,6 +65,7 @@ Harness Lab 使用官方上游 session schema 和完全 synthetic fixtures 建�
 - **可复现构建**：运行时部署、依赖补齐、junction 展平、冒烟测试和 Electron 打包均由脚本完成。
 - **隐私优先开源**：源码仓库明确排除账号凭据、历史会话、日志、缓存、签名材料和本机构建产物。
 - **Harness Diff**：用确定性指标和规则比较两次执行的工具使用、失败恢复、搜索路径与文件 churn。
+- **订阅模型接入**：`config-example/` 提供 ChatGPT 订阅（OAuth）登录脚本与 OpenAI 兼容提供商（如火山方舟豆包）配置示例，构建流程自动注入运行时补丁。
 
 ## 工作方式
 
@@ -80,9 +81,10 @@ Electron 窗口加载 Web GUI 并注入桌面主题
 
 ## 隐私
 
-仓库只包含桌面壳源码、构建脚本和必要图标，不包含：
+仓库只包含桌面壳源码、构建脚本、必要图标和**不含任何真实凭据的配置示例**，不包含：
 
 - `.dsh`、API 凭据、登录状态或历史会话
+- 订阅 OAuth token（`oauth-credentials.json`）或适配器回滚备份（`*.oauth-bak`）
 - 日志、缓存、数据库和本机配置
 - `node_modules`、打包产物、内置运行时或 Node 可执行文件
 - 代码签名证书、私钥或环境变量文件
@@ -90,6 +92,51 @@ Electron 窗口加载 Web GUI 并注入桌面主题
 应用会在运行时读取本机的 `DSH_HOME`；这些数据不会被复制到项目目录。
 
 Harness Lab 默认只把经过净化的指标、工具名/类别、通用摘要和文件 basename 发送给本地 renderer。它不会把 Prompt 原文或凭据用于比较，也不会发起远程分析。
+
+## 配置示例与订阅模型接入
+
+[`config-example/`](config-example/README.md) 是一套可直接上手的 Harness 用户配置示例：默认模型路由、权限预设、通用多提供商适配器（`llm-pi-ai`）的 provider 配置，以及 ChatGPT 订阅（Plus / Pro / Pro Max）经 OAuth 接入 `openai-codex` 路由的一键登录/验证脚本。
+
+> 豆包专业版订阅是 App/网页消费订阅，不发放 API Key；API 调用走火山方舟单独计费。
+> 仓库不提供任何 Cookie / 网页会话桥接方案，OpenAI 兼容接入示例见下。
+
+### ChatGPT 订阅（openai-codex 路由）
+
+`openai-codex` 是 OAuth-only 路由，原版适配器不携带凭据存储。构建流程已自动打补丁（`scripts/patch-pi-ai-oauth.mjs`，幂等，原文件备份为 `index.js.oauth-bak`）；对已安装应用可手动执行：
+
+```powershell
+node scripts\patch-pi-ai-oauth.mjs "%LOCALAPPDATA%\Programs\DeepSeek\resources\runtime"
+```
+
+然后把 `config-example\settings.yaml.example` 中 `llm-pi-ai.providers.openai-codex` 段合并进 `$DSH_HOME\settings.yaml`，登录：
+
+```powershell
+node config-example\oauth-login-openai-codex.mjs
+node config-example\test-openai-codex.mjs gpt-5.6-luna
+```
+
+登录凭据写入 `$DSH_HOME\oauth-credentials.json`（已 gitignore），token 到期自动刷新；随后即可在 Web GUI 模型选择器中选用该路由下的模型。
+
+### 添加 OpenAI 兼容提供商（豆包 / 火山方舟）
+
+在 `$DSH_HOME\settings.yaml` 的 `llm-pi-ai.providers` 下新增一段，`apiKeyEnv` 引用按请求解析的凭据（写入 `$DSH_HOME\.credentials.yaml` 或 `.env`）：
+
+```yaml
+llm-pi-ai:
+  providers:
+    volcark:
+      displayName: 火山方舟豆包
+      apiKeyEnv: ARK_API_KEY
+      api: openai-completions
+      baseURL: https://ark.cn-beijing.volces.com/api/v3
+      models:
+        - id: ep-xxxxxxxx      # 方舟控制台的推理接入点 ID，或模型名（如 doubao-seed-2-1-pro）
+          name: 豆包 2.1 Pro
+          contextWindow: 128000
+          maxTokens: 8192
+```
+
+`llm-pi-ai` 适配器默认休眠挂载：配置段出现即实时注册路由（无需重启），段清空即移除。
 
 ## 开发运行
 

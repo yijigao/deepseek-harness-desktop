@@ -95,6 +95,13 @@ Remove-Item -Recurse -Force $runtimeNew -ErrorAction SilentlyContinue
 & $node (Join-Path $dshexe 'scripts\flatten-runtime.mjs') $runtime $runtimeNew 2>&1 | ForEach-Object { Log "flatten: $_" }
 if (-not (Test-Path (Join-Path $runtimeNew 'lib\bin.js'))) { Log 'flatten produced no runtime'; exit 5 }
 
+# 订阅模型接入（可选项，但默认开启）：给 dsh-llm-pi-ai 适配器注入文件持久化
+# OAuth 存储，让 openai-codex（ChatGPT 订阅）等 OAuth-only 路由可登录使用。
+# 幂等：原版文件备份为 index.js.oauth-bak；上游改动导致锚点失配时构建失败，避免静默半补丁。
+Log 'patching pi-ai OAuth credential seam'
+& $node (Join-Path $dshexe 'scripts\patch-pi-ai-oauth.mjs') $runtimeNew 2>&1 | ForEach-Object { Log "patch-pi-ai: $_" }
+if ($LASTEXITCODE -ne 0) { Log 'pi-ai OAuth patch FAILED — aborting build'; exit 9 }
+
 Log 'smoke-testing flattened runtime'
 & $node (Join-Path $dshexe 'scripts\test-runtime.mjs') $runtimeNew 2>&1 | ForEach-Object { Log "test: $_" }
 if ($LASTEXITCODE -ne 0) { Log 'runtime smoke test FAILED — keeping current runtime'; exit 6 }
@@ -113,6 +120,7 @@ $appVersion = (Get-Content (Join-Path $dshexe 'app\package.json') -Raw | Convert
 Copy-Item (Join-Path $dshexe 'app\fix-junctions.js') (Join-Path $staging 'payload\fix-junctions.js') -Force
 Copy-Item (Join-Path $dshexe 'app\build\icon.ico') (Join-Path $staging 'payload\icon.ico') -Force
 Copy-Item (Join-Path $dshexe 'scripts\sync-update.ps1') (Join-Path $staging 'payload\sync-update.ps1') -Force
+Copy-Item (Join-Path $dshexe 'scripts\patch-pi-ai-oauth.mjs') (Join-Path $staging 'payload\patch-pi-ai-oauth.mjs') -Force
 
 Log 'building exes (electron-builder)'
 $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
