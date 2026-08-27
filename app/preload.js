@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('ccDesktop', {
   toggleMaximize: () => ipcRenderer.send('cc:max'),
   close: () => ipcRenderer.send('cc:close'),
   openHarnessLab: () => ipcRenderer.send('cc:open-harness-lab'),
+  openModelSettings: () => ipcRenderer.send('cc:open-model-settings'),
   isMaximized: () => ipcRenderer.invoke('cc:isMax'),
   onMaxChanged: (callback) => {
     ipcRenderer.on('cc:max-changed', (_event, value) => callback(Boolean(value)))

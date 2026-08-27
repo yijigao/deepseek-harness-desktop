@@ -1,7 +1,7 @@
 {
   "name": "deepseek-desktop",
   "productName": "DeepSeek",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Community-maintained Windows desktop shell for DeepSeek Harness",
   "author": "DeepSeek Harness Desktop contributors",
   "license": "MIT",
@@ -17,6 +17,7 @@
   "scripts": {
     "start": "electron .",
     "start:harness-lab-demo": "electron . --demo-harness-lab",
+    "start:model-settings-demo": "electron . --demo-model-settings",
     "test": "node --test ../tests/*.test.js",
     "secret-scan": "node ../scripts/secret-scan.mjs",
     "fixtures:harness-lab": "node ../scripts/generate-harness-lab-fixtures.mjs",
@@ -44,13 +45,17 @@
       "claude-theme.css",
       "harness-lab-button.css",
       "harness-lab/**/*",
+      "model-settings/**/*",
       "lib/**/*",
       "demo/**/*",
       "fix-junctions.js",
       "package.json"
     ],
     "extraResources": [
-      { "from": "../staging/payload", "to": "." }
+      { "from": "../staging/payload", "to": "." },
+      { "from": "../config-example/oauth-login-openai-codex.mjs", "to": "tools/oauth-login-openai-codex.mjs" },
+      { "from": "../config-example/test-openai-codex.mjs", "to": "tools/test-openai-codex.mjs" },
+      { "from": "../scripts/patch-pi-ai-oauth.mjs", "to": "tools/patch-pi-ai-oauth.mjs" }
     ],
     "win": {
       "icon": "build/icon.ico",

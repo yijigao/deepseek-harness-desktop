@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Models & Health</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="renderer.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">LOCAL CONTROL CENTER</p><h1>模型与运行健康</h1><p>检查桌面运行时、配置和 ChatGPT 订阅登录状态。</p></header>
+    <section><div class="section-head"><h2>运行状态</h2><button id="refresh" class="secondary">刷新</button></div><div id="health" class="grid" aria-live="polite"></div></section>
+    <section><h2>ChatGPT 订阅</h2><p id="oauth-copy">检测登录状态中…</p><div class="actions"><button id="login">登录 ChatGPT</button><button id="open-home" class="secondary">打开 DSH 配置目录</button></div><p class="hint">登录会在独立进程中打开浏览器授权；凭据仅保存到本机 DSH_HOME。</p></section>
+    <div id="feedback" role="status" aria-live="polite"></div>
+  </main>
+</body>
+</html>

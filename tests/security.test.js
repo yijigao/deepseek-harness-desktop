@@ -34,6 +34,27 @@ test('Harness Lab preload exposes only the three strict query methods', () => {
   assert.deepEqual(exposedMethods, ['compareRuns', 'getRun', 'listRuns'])
 })
 
+test('Models & Health remains a sandboxed local control surface', () => {
+  const main = read('app/main.js')
+  const preload = read('app/model-settings/preload.js')
+  const html = read('app/model-settings/index.html')
+  const renderer = read('app/model-settings/renderer.js')
+  assert.match(main, /title: 'Models & Health'/)
+  assert.match(main, /contextIsolation:\s*true/)
+  assert.match(main, /nodeIntegration:\s*false/)
+  assert.match(main, /sandbox:\s*true/)
+  assert.match(main, /isTrustedSender\(event, modelSettingsWindow\)/)
+  assert.deepEqual(
+    [...preload.matchAll(/^\s{2}([A-Za-z]+):/gm)].map((match) => match[1]).sort(),
+    ['getHealth', 'loginChatGPT', 'openDshHome'],
+  )
+  assert.match(html, /connect-src 'none'/)
+  assert.doesNotMatch(html, /https?:\/\//)
+  assert.doesNotMatch(renderer, /\b(?:require|process|Buffer|fetch|XMLHttpRequest|WebSocket|eval)\b/)
+  assert.doesNotMatch(renderer, /\.innerHTML\s*=/)
+  assert.doesNotMatch(main, /accessToken|refreshToken/)
+})
+
 test('Harness Lab renderer is static, local, and has no Node or arbitrary network access', () => {
   const html = read('app/harness-lab/index.html')
   const renderer = read('app/harness-lab/renderer.js')
@@ -106,4 +127,8 @@ test('packaging includes trajectory, local UI, preload, and synthetic demo asset
   }
   assert.ok(manifest.build.asarUnpack.includes('demo/**/*'))
   assert.match(read('app/main.js'), /app\.asar\.unpacked', 'demo'/)
+  assert.ok(manifest.build.files.includes('model-settings/**/*'))
+  const resourceTargets = manifest.build.extraResources.map((entry) => entry.to)
+  assert.ok(resourceTargets.includes('tools/oauth-login-openai-codex.mjs'))
+  assert.ok(resourceTargets.includes('tools/patch-pi-ai-oauth.mjs'))
 })

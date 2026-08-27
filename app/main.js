@@ -24,10 +24,12 @@ const LOG_PATH = path.join(os.tmpdir(), 'deepseek-desktop.log')
 
 let mainWindow = null
 let harnessLabWindow = null
+let modelSettingsWindow = null
 let harnessLabService = null
 let serverChild = null
 let stopping = false
 const HARNESS_LAB_DEMO = process.env.HARNESS_LAB_DEMO === '1' || process.argv.includes('--demo-harness-lab')
+const MODEL_SETTINGS_DEMO = process.argv.includes('--demo-model-settings') || process.argv.includes('--verify-model-settings')
 
 function log(line) {
   const text = `[${new Date().toISOString()}] ${line}\n`
@@ -65,6 +67,16 @@ function nodeExePath() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'node.exe')
     : path.join(__dirname, '..', 'staging', 'payload', 'node.exe')
+}
+
+function dshHomePath() {
+  return process.env.DSH_HOME || path.join(os.homedir(), '.dsh')
+}
+
+function toolPath(name) {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'tools', name)
+    : path.join(__dirname, '..', name === 'patch-pi-ai-oauth.mjs' ? 'scripts' : 'config-example', name)
 }
 
 function iconPath() {
@@ -283,6 +295,99 @@ async function createHarnessLabWindow() {
   harnessLabWindow.on('closed', () => { harnessLabWindow = null })
   await harnessLabWindow.loadFile(labHtml)
   return harnessLabWindow
+}
+
+function readOAuthSummary() {
+  const credentialPath = path.join(dshHomePath(), 'oauth-credentials.json')
+  try {
+    const data = JSON.parse(fs.readFileSync(credentialPath, 'utf8'))
+    const credential = data['openai-codex']
+    if (!credential || typeof credential !== 'object') return { present: false }
+    return {
+      present: true,
+      accountId: typeof credential.accountId === 'string' ? credential.accountId : null,
+      expires: Number.isFinite(Number(credential.expires)) ? Number(credential.expires) : null,
+    }
+  } catch {
+    return { present: false }
+  }
+}
+
+function patchStatus() {
+  const result = spawnSync(nodeExePath(), [toolPath('patch-pi-ai-oauth.mjs'), resolveRuntimeRoot(), '--check'], {
+    windowsHide: true,
+    timeout: 30000,
+    encoding: 'utf8',
+  })
+  return { ok: result.status === 0, detail: String(result.stdout || result.stderr || '').trim().slice(0, 300) }
+}
+
+function modelHealth() {
+  const info = readBuildInfo()
+  return {
+    appVersion: app.getVersion(),
+    dshVersion: info?.dshVersion ?? null,
+    dshCommit: info?.dshCommitShort ?? null,
+    runtimePresent: fs.existsSync(binJsPath(resolveRuntimeRoot())),
+    serverRunning: Boolean(serverChild),
+    dshHome: dshHomePath(),
+    settingsPresent: fs.existsSync(path.join(dshHomePath(), 'settings.yaml')),
+    oauth: readOAuthSummary(),
+    patch: patchStatus(),
+  }
+}
+
+async function createModelSettingsWindow() {
+  if (modelSettingsWindow && !modelSettingsWindow.isDestroyed()) {
+    modelSettingsWindow.show()
+    modelSettingsWindow.focus()
+    return
+  }
+  modelSettingsWindow = new BrowserWindow({
+    width: 860,
+    height: 720,
+    minWidth: 720,
+    minHeight: 560,
+    show: false,
+    backgroundColor: '#171717',
+    icon: iconPath(),
+    title: 'Models & Health',
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      preload: path.join(__dirname, 'model-settings', 'preload.js'),
+    },
+  })
+  const settingsHtml = path.join(__dirname, 'model-settings', 'index.html')
+  const settingsUrl = pathToFileURL(settingsHtml).href
+  modelSettingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  modelSettingsWindow.webContents.on('will-navigate', (event, url) => { if (url !== settingsUrl) event.preventDefault() })
+  modelSettingsWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+  modelSettingsWindow.once('ready-to-show', () => modelSettingsWindow?.show())
+  modelSettingsWindow.on('closed', () => { modelSettingsWindow = null })
+  await modelSettingsWindow.loadFile(settingsHtml)
+}
+
+function trustedSettingsHandler(operation) {
+  return async (event, ...args) => {
+    if (!isTrustedSender(event, modelSettingsWindow)) throw new Error('Settings request denied')
+    return operation(...args)
+  }
+}
+
+function runOAuthLogin() {
+  const script = toolPath('oauth-login-openai-codex.mjs')
+  const child = spawn(nodeExePath(), [script, resolveRuntimeRoot()], {
+    env: { ...process.env, DSH_HOME: dshHomePath(), DSH_RUNTIME: resolveRuntimeRoot() },
+    windowsHide: false,
+    detached: true,
+    stdio: 'ignore',
+  })
+  child.unref()
+  return { started: true }
 }
 
 function delay(ms) {
@@ -519,7 +624,7 @@ if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    const targetWindow = HARNESS_LAB_DEMO ? harnessLabWindow : mainWindow
+    const targetWindow = HARNESS_LAB_DEMO ? harnessLabWindow : MODEL_SETTINGS_DEMO ? modelSettingsWindow : mainWindow
     if (targetWindow) {
       if (targetWindow.isMinimized()) targetWindow.restore()
       targetWindow.focus()
@@ -541,6 +646,16 @@ if (!gotLock) {
       dialog.showErrorBox('Harness Lab', 'Could not open the local Harness Lab window.')
     })
   })
+  ipcMain.on('cc:open-model-settings', (event) => {
+    if (!isTrustedSender(event, mainWindow)) return
+    createModelSettingsWindow().catch(() => dialog.showErrorBox(PRODUCT, 'Could not open Models & Health.'))
+  })
+  ipcMain.handle('model-settings:health', trustedSettingsHandler(() => modelHealth()))
+  ipcMain.handle('model-settings:login', trustedSettingsHandler(() => runOAuthLogin()))
+  ipcMain.handle('model-settings:open-home', trustedSettingsHandler(() => {
+    fs.mkdirSync(dshHomePath(), { recursive: true })
+    return shell.openPath(dshHomePath())
+  }))
 
   ipcMain.handle('harness-lab:list-runs', harnessLabHandler((service) => service.listRuns()))
   ipcMain.handle('harness-lab:get-run', harnessLabHandler((service, runId) => service.getRun(runId)))
@@ -575,6 +690,30 @@ if (!gotLock) {
       } catch (error) {
         log(`Harness Lab demo startup failed: ${String(error && error.message ? error.message : error)}`)
         dialog.showErrorBox('Harness Lab', 'Could not start Harness Lab demo mode.')
+        app.quit()
+      }
+      return
+    }
+
+    if (MODEL_SETTINGS_DEMO) {
+      try {
+        await createModelSettingsWindow()
+        if (process.argv.includes('--verify-model-settings')) {
+          await delay(800)
+          const report = await modelSettingsWindow.webContents.executeJavaScript(`(() => ({
+            title: document.querySelector('h1')?.textContent,
+            cards: document.querySelectorAll('#health .card').length,
+            loginButton: Boolean(document.getElementById('login')),
+            bodyBg: getComputedStyle(document.body).backgroundColor,
+          }))()`)
+          const ok = report.title === '模型与运行健康' && report.cards >= 7 && report.loginButton
+          console.log(`MODEL-SETTINGS-VERIFY ${JSON.stringify(report)}`)
+          process.exitCode = ok ? 0 : 1
+          app.quit()
+        }
+      } catch (error) {
+        log(`Models & Health demo failed: ${String(error && error.message ? error.message : error)}`)
+        process.exitCode = 1
         app.quit()
       }
       return
