@@ -123,11 +123,13 @@ class HarnessLabSessionService {
     this.sessionsRoot = path.join(dshHome, 'sessions')
     this.demoMode = Boolean(options.demoMode)
     this.demoDir = options.demoDir || path.join(__dirname, '..', '..', 'demo')
-    this.maxFiles = options.maxFiles ?? 100
+    this.maxFiles = options.maxFiles ?? 20
     this.maxDepth = options.maxDepth ?? 5
     this.maxFileBytes = options.maxFileBytes ?? 256 * 1024 * 1024
     this.registry = new Map()
     this.cache = new Map()
+    this.summaryCachePath = options.summaryCachePath || null
+    this.summaryCache = null
   }
 
   async collectSessionFiles(directory, rootInfo, depth = 0, output = []) {
@@ -183,13 +185,38 @@ class HarnessLabSessionService {
       } catch {}
     }
     stats.sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs)
-    return stats.slice(0, this.maxFiles).map(({ filePath, rootInfo: safeRoot }) => ({
+    return stats.slice(0, this.maxFiles).map(({ filePath, rootInfo: safeRoot, stat }) => ({
       filePath,
       rootBirthtimeMs: safeRoot.birthtimeMs,
       rootDev: safeRoot.dev,
       rootIno: safeRoot.ino,
       rootReal: safeRoot.realPath,
+      mtimeMs: stat.mtimeMs,
+      size: stat.size,
+      dev: stat.dev,
+      ino: stat.ino,
     }))
+  }
+
+  async readSummaryCache() {
+    if (this.summaryCache) return this.summaryCache
+    if (!this.summaryCachePath) return (this.summaryCache = {})
+    try {
+      const parsed = JSON.parse(await fs.readFile(this.summaryCachePath, 'utf8'))
+      this.summaryCache = parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      this.summaryCache = {}
+    }
+    return this.summaryCache
+  }
+
+  async writeSummaryCache(cache) {
+    this.summaryCache = cache
+    if (!this.summaryCachePath) return
+    try {
+      await fs.mkdir(path.dirname(this.summaryCachePath), { recursive: true })
+      await fs.writeFile(this.summaryCachePath, JSON.stringify(cache), { mode: 0o600 })
+    } catch {}
   }
 
   async loadFile(entry) {
@@ -270,13 +297,43 @@ class HarnessLabSessionService {
   }
 
   async listRuns() {
-    const runs = await this.refresh()
-    return runs.map((run) => publicRun(run, false))
+    const files = await this.discoverFiles()
+    const stored = await this.readSummaryCache()
+    const next = {}
+    const nextRegistry = new Map()
+    const summaries = []
+    let unsupportedCompression = false
+    for (const entry of files) {
+      const runId = opaqueId(entry.filePath)
+      nextRegistry.set(runId, entry)
+      const cached = stored[runId]
+      if (cached && cached.mtimeMs === entry.mtimeMs && cached.size === entry.size && cached.summary) {
+        next[runId] = cached
+        summaries.push(cached.summary)
+        continue
+      }
+      try {
+        const summary = publicRun(await this.loadFile(entry), false)
+        next[runId] = { mtimeMs: entry.mtimeMs, size: entry.size, summary }
+        summaries.push(summary)
+      } catch (error) {
+        if (error?.code === 'HARNESS_LAB_ZSTD_UNAVAILABLE') unsupportedCompression = true
+      }
+    }
+    if (unsupportedCompression && summaries.length === 0) {
+      const error = new Error('Harness Lab runtime lacks required session compression support')
+      error.code = 'HARNESS_LAB_ZSTD_UNAVAILABLE'
+      throw error
+    }
+    summaries.sort((a, b) => Date.parse(b.startedAt ?? 0) - Date.parse(a.startedAt ?? 0))
+    this.registry = nextRegistry
+    await this.writeSummaryCache(next)
+    return summaries
   }
 
   async requireRun(runId) {
     if (typeof runId !== 'string' || !/^[a-f0-9]{24}$/.test(runId)) throw new Error('Unknown run')
-    if (!this.registry.has(runId)) await this.refresh()
+    if (!this.registry.has(runId)) await this.listRuns()
     const entry = this.registry.get(runId)
     if (!entry) throw new Error('Unknown run')
     return this.loadFile(entry)

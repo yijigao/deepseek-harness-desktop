@@ -47,14 +47,14 @@ function compareRepeatedLoops(divergences, a, b) {
     for (const group of own.repeatedGroups) {
       const counterpart = other.repeatedGroups.find((item) => item.signature === group.signature)
       if (counterpart && counterpart.stepIndexes.length >= group.stepIndexes.length) continue
-      const operation = group.category === 'search' ? 'repository search' : `${group.tool} call`
+      const operation = group.category === 'search' ? '仓库搜索' : `${group.tool} 工具调用`
       addDivergence(
         divergences,
         'repeated_tool_loop',
         'warning',
         label,
         group.stepIndexes,
-        `Run ${label} repeated the same ${operation} ${group.stepIndexes.length} times.`,
+        `运行 ${label} 使用相同参数重复执行了 ${group.stepIndexes.length} 次${operation}。`,
       )
     }
   }
@@ -72,7 +72,7 @@ function compareExtraFailures(divergences, a, b) {
     'warning',
     label,
     analysis.failedShellResults.map((step) => step.index),
-    `Run ${label} had ${count} additional failed shell command${count === 1 ? '' : 's'}.`,
+    `运行 ${label} 多出 ${count} 次失败的命令行调用。`,
   )
 }
 
@@ -88,7 +88,7 @@ function compareFileChurn(divergences, a, b) {
     'warning',
     label,
     own.writeSteps.map((step) => step.index),
-    `Run ${label} performed ${own.writeSteps.length - other.writeSteps.length} additional file writes.`,
+    `运行 ${label} 多执行了 ${own.writeSteps.length - other.writeSteps.length} 次文件写入。`,
   )
 }
 
@@ -104,7 +104,7 @@ function compareSearchReadPaths(divergences, a, b) {
     'info',
     label,
     own.readSearchSteps.map((step) => step.index),
-    `Run ${label} used ${own.readSearchSteps.length - other.readSearchSteps.length} additional search/read operations.`,
+    `运行 ${label} 多执行了 ${own.readSearchSteps.length - other.readSearchSteps.length} 次搜索或读取。`,
   )
 }
 
@@ -121,7 +121,7 @@ function compareTestTiming(divergences, a, b) {
     'info',
     laterLabel,
     [earlier.firstTestCall.index, later.firstTestCall.index],
-    `Run ${laterLabel} executed tests later (${later.firstTestCallOrdinal + 1}th vs ${earlier.firstTestCallOrdinal + 1}th tool call).`,
+    `运行 ${laterLabel} 更晚才执行测试（第 ${later.firstTestCallOrdinal + 1} 次工具调用，对方为第 ${earlier.firstTestCallOrdinal + 1} 次）。`,
   )
 }
 
@@ -135,7 +135,7 @@ function compareRecovery(divergences, a, b) {
         'info',
         label,
         indexes,
-        `Run ${label} failed a shell command and later recovered with the same command.`,
+        `运行 ${label} 的命令曾失败，但随后使用相同命令恢复成功。`,
       )
     }
     if (analysis.unrecoveredShellResults.length > 0) {
@@ -145,7 +145,7 @@ function compareRecovery(divergences, a, b) {
         'warning',
         label,
         analysis.unrecoveredShellResults.map((step) => step.index),
-        `Run ${label} ended without a matching successful retry for a failed shell command.`,
+        `运行 ${label} 结束时仍有失败命令未通过重试恢复。`,
       )
     }
   }
@@ -183,7 +183,7 @@ function buildDiagnosis(runA, runB, metricDiffs, divergences) {
     const better = value < 0 ? 'B' : 'A'
     findings.push({
       tone: 'positive',
-      text: `Run ${better} 少用了 ${Math.abs(value).toLocaleString()} ${noun}。`,
+      text: `运行 ${better} 少用了 ${Math.abs(value).toLocaleString()} ${noun}。`,
     })
   }
 
@@ -195,7 +195,7 @@ function buildDiagnosis(runA, runB, metricDiffs, divergences) {
   const durationDelta = delta('duration_ms')
   if (durationDelta) {
     const faster = durationDelta < 0 ? 'B' : 'A'
-    findings.push({ tone: 'positive', text: `Run ${faster} 用时更短，差值约 ${Math.round(Math.abs(durationDelta) / 1000).toLocaleString()} 秒。` })
+    findings.push({ tone: 'positive', text: `运行 ${faster} 用时更短，差值约 ${Math.round(Math.abs(durationDelta) / 1000).toLocaleString()} 秒。` })
   }
 
   const warningsByRun = { A: [], B: [] }
@@ -206,12 +206,12 @@ function buildDiagnosis(runA, runB, metricDiffs, divergences) {
   }
   for (const label of ['A', 'B']) {
     const types = new Set(warningsByRun[label])
-    if (types.has('repeated_tool_loop')) recommendations.push(`检查 Run ${label} 的提示词或搜索策略，避免对相同参数重复调用工具。`)
-    if (types.has('extra_failed_command') || types.has('unrecovered_failure')) recommendations.push(`优先修复 Run ${label} 的失败命令，并在重试前调整参数或执行路径。`)
-    if (types.has('unnecessary_file_churn')) recommendations.push(`收紧 Run ${label} 的文件修改范围，并在写入前明确目标文件。`)
+    if (types.has('repeated_tool_loop')) recommendations.push(`检查运行 ${label} 的提示词或搜索策略，避免对相同参数重复调用工具。`)
+    if (types.has('extra_failed_command') || types.has('unrecovered_failure')) recommendations.push(`优先修复运行 ${label} 的失败命令，并在重试前调整参数或执行路径。`)
+    if (types.has('unnecessary_file_churn')) recommendations.push(`收紧运行 ${label} 的文件修改范围，并在写入前明确目标文件。`)
   }
   const lateTest = divergences.find((item) => item.type === 'test_execution_timing')
-  if (lateTest) recommendations.push(`Run ${lateTest.run} 较晚运行测试；建议在关键修改后更早执行最小验证。`)
+  if (lateTest) recommendations.push(`运行 ${lateTest.run} 较晚运行测试；建议在关键修改后更早执行最小验证。`)
 
   const statusRank = (status) => status === 'success' ? 2 : status === 'failed' || status === 'error' ? 0 : 1
   const rankA = statusRank(runA.status)
@@ -234,7 +234,7 @@ function buildDiagnosis(runA, runB, metricDiffs, divergences) {
   }
 
   const headline = winner
-    ? `Run ${winner} 的执行轨迹整体更精简、稳定。`
+    ? `运行 ${winner} 的执行轨迹整体更精简、稳定。`
     : '两次运行各有取舍，暂时没有明确更优者。'
   if (recommendations.length === 0) recommendations.push('当前未发现明显的规则级问题；结合最终产物质量决定保留哪次配置。')
 

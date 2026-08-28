@@ -23,7 +23,7 @@ test('both Electron windows retain isolation, sandboxing, and disabled Node inte
   assert.match(main, /cannot read compressed sessions in this runtime/)
 })
 
-test('Harness Lab preload exposes only the three strict query methods', () => {
+test('Harness Lab preload exposes only the approved query and action methods', () => {
   const preload = read('app/harness-lab/preload.js')
   assert.match(preload, /listRuns:/)
   assert.match(preload, /getRun:/)
@@ -31,7 +31,7 @@ test('Harness Lab preload exposes only the three strict query methods', () => {
   assert.doesNotMatch(preload, /require\(['"]node:(?:fs|path|child_process)/)
   assert.doesNotMatch(preload, /(?:exec|spawn|shell)\s*:/)
   const exposedMethods = [...preload.matchAll(/^\s{2}([A-Za-z]+):/gm)].map((match) => match[1]).sort()
-  assert.deepEqual(exposedMethods, ['compareRuns', 'getRun', 'listRuns'])
+  assert.deepEqual(exposedMethods, ['compareRuns', 'copyOptimizationBrief', 'exportReport', 'getRun', 'listRuns', 'setBaseline'])
 })
 
 test('Models & Health remains a sandboxed local control surface', () => {
@@ -58,7 +58,7 @@ test('Models & Health remains a sandboxed local control surface', () => {
 test('Harness Lab renderer is static, local, and has no Node or arbitrary network access', () => {
   const html = read('app/harness-lab/index.html')
   const renderer = read('app/harness-lab/renderer.js')
-  assert.match(html, /Stop benchmarking models\. Benchmark the harness\./)
+  assert.match(html, /不只看答案，更要看任务是怎么完成的。/)
   assert.match(html, /Content-Security-Policy/)
   assert.match(html, /connect-src 'none'/)
   assert.doesNotMatch(html, /https?:\/\//)
@@ -66,6 +66,7 @@ test('Harness Lab renderer is static, local, and has no Node or arbitrary networ
   assert.doesNotMatch(renderer, /\b(?:fetch|XMLHttpRequest|WebSocket|eval)\s*\(/)
   assert.doesNotMatch(renderer, /\.innerHTML\s*=/)
   assert.doesNotMatch(renderer, /\.workspace\b/)
+  assert.match(html, /复制优化任务/)
 })
 
 test('session service uses opaque registry IDs rather than renderer-provided paths', () => {
@@ -80,6 +81,8 @@ test('session service uses opaque registry IDs rather than renderer-provided pat
   assert.match(service, /sameIdentity\(rootAfter, expectedRoot\)/)
   assert.match(service, /O_NOFOLLOW/)
   assert.match(service, /handle\.readFile\(\)/)
+  assert.match(service, /this\.maxFiles = options\.maxFiles \?\? 20/)
+  assert.match(service, /harness-lab-summary-cache|summaryCachePath/)
   assert.match(service, /isWithinRoot\(currentReal, resolvedRoot\)/)
 })
 
@@ -95,7 +98,7 @@ test('Harness Lab automation re-queries rows after each state-changing selection
   const main = read('app/main.js')
   assert.match(main, /const selectRun = \(rowIndex, side\) => document\s*\.querySelectorAll\('#runs-body tr'\)\[rowIndex\]/)
   assert.match(main, /selectRun\(0, 'a'\)\s*selectRun\(1, 'b'\)\s*document\.getElementById\('compare-selected'\)\?\.click\(\)/)
-  assert.match(main, /report\.diagnosis === 'Run B 的执行轨迹整体更精简、稳定。'/)
+  assert.match(main, /report\.diagnosis === '运行 B 的执行轨迹整体更精简、稳定。'/)
 })
 
 test('all committed JSONL fixtures are explicitly synthetic', () => {

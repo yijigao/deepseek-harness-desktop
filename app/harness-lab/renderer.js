@@ -2,12 +2,12 @@
   'use strict'
 
   const METRIC_DEFINITIONS = [
-    { key: 'duration_ms', label: 'Duration', kind: 'duration' },
-    { key: 'total_steps', label: 'Steps', kind: 'count' },
-    { key: 'tool_calls', label: 'Tool calls', kind: 'count' },
-    { key: 'failed_tool_calls', label: 'Failures', kind: 'count' },
-    { key: 'retry_count', label: 'Retries', kind: 'count' },
-    { key: 'total_tokens', label: 'Tokens', kind: 'count' },
+    { key: 'duration_ms', label: '耗时', kind: 'duration' },
+    { key: 'total_steps', label: '步骤', kind: 'count' },
+    { key: 'tool_calls', label: '工具调用', kind: 'count' },
+    { key: 'failed_tool_calls', label: '失败', kind: 'count' },
+    { key: 'retry_count', label: '重试', kind: 'count' },
+    { key: 'total_tokens', label: 'Token', kind: 'count' },
   ]
 
   const METRIC_ALIASES = {
@@ -60,6 +60,10 @@
     divergenceCount: document.getElementById('divergence-count'),
     divergenceList: document.getElementById('divergence-list'),
     metricDiffs: document.getElementById('metric-diffs'),
+    copyBrief: document.getElementById('copy-brief'),
+    exportReport: document.getElementById('export-report'),
+    setBaseline: document.getElementById('set-baseline'),
+    actionFeedback: document.getElementById('action-feedback'),
   }
 
   const state = {
@@ -98,7 +102,7 @@
     return `${valueString.slice(0, maxLength - 1).trimEnd()}…`
   }
 
-  function summaryString(value, fallback = 'No sanitized summary available.') {
+  function summaryString(value, fallback = '暂无脱敏摘要。') {
     const valueString = rawString(value).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
     if (!valueString || PATH_RE.test(valueString) || valueString.includes('/') || valueString.includes('\\') || RAW_CONTENT_RE.test(valueString)) {
       return fallback
@@ -161,6 +165,7 @@
       startedAt: value.startedAt ?? value.started_at ?? null,
       model: rawString(value.model || value.modelName),
       status: rawString(value.status || 'unknown').toLowerCase(),
+      isBaseline: value.isBaseline === true,
       metrics,
     }
   }
@@ -229,8 +234,9 @@
 
   function displayStatus(value) {
     const normalized = rawString(value).replace(/[-_]+/g, ' ').trim()
-    if (!normalized) return 'Unknown'
-    return compactString(normalized.replace(/\b\w/g, (letter) => letter.toUpperCase()), 'Unknown', 32)
+    if (!normalized) return '未知'
+    const labels = { success: '成功', completed: '已完成', complete: '已完成', passed: '通过', failed: '失败', error: '错误', crashed: '崩溃', running: '运行中', 'in-progress': '进行中', cancelled: '已取消', canceled: '已取消', timeout: '超时' }
+    return labels[normalized] || compactString(normalized, '未知', 32)
   }
 
   function statusClass(value) {
@@ -280,7 +286,7 @@
 
   function selectionLabel(side) {
     const run = selectedRun(side)
-    return run ? compactString(run.runId, 'Selected run', 34) : 'Not selected'
+    return run ? compactString(run.runId, '已选择', 34) : '未选择'
   }
 
   function renderTabState() {
@@ -307,7 +313,7 @@
     const ready = hasDistinctSelection()
     elements.compareSelected.disabled = !ready || state.compareLoading
     elements.runComparison.disabled = !ready || state.compareLoading
-    elements.compareTabState.textContent = ready ? 'Ready' : 'Select two'
+    elements.compareTabState.textContent = ready ? '可以分析' : '请选择两条'
     elements.compareTabState.classList.toggle('is-ready', ready)
   }
 
@@ -326,13 +332,13 @@
       const selectA = createButton('A', 'select-run', {
         'data-select-side': 'a',
         'data-run-id': run.runId,
-        'aria-label': `Select ${compactString(run.runId, 'run', 42)} as Run A`,
+        'aria-label': `将 ${compactString(run.runId, '运行', 42)} 选为运行 A`,
         'aria-pressed': String(state.selectedA === run.runId),
       })
       const selectB = createButton('B', 'select-run', {
         'data-select-side': 'b',
         'data-run-id': run.runId,
-        'aria-label': `Select ${compactString(run.runId, 'run', 42)} as Run B`,
+        'aria-label': `将 ${compactString(run.runId, '运行', 42)} 选为运行 B`,
         'aria-pressed': String(state.selectedB === run.runId),
       })
       if (state.selectedA === run.runId) selectA.classList.add('is-selected-a')
@@ -344,7 +350,8 @@
       const startedCell = createTextElement('td', formatDate(run.startedAt), 'time-cell')
       startedCell.title = compactString(run.runId, 'Run', 80)
       row.append(startedCell)
-      row.append(createTextElement('td', compactString(run.model, 'Unknown model', 42), 'model-cell'))
+      if (run.isBaseline) startedCell.append(createTextElement('span', '基线', 'baseline-badge'))
+      row.append(createTextElement('td', compactString(run.model, '未知模型', 42), 'model-cell'))
       row.append(createTextElement('td', formatDuration(metricFromRun(run, 'duration_ms')), 'metric-cell'))
 
       const statusCell = document.createElement('td')
@@ -363,7 +370,7 @@
       elements.runsEmpty.hidden = true
     }
     if (state.runsLoading) {
-      setFeedback(elements.runsFeedback, 'Loading run summaries…', 'loading')
+      setFeedback(elements.runsFeedback, '正在读取运行摘要…', 'loading')
     } else {
       setFeedback(elements.runsFeedback, state.runsError, state.runsError ? 'error' : '')
     }
@@ -499,9 +506,9 @@
   function divergenceRunLabel(value) {
     const runA = state.selectedA
     const runB = state.selectedB
-    if (value === runA || rawString(value).toLowerCase() === 'a' || rawString(value).toLowerCase() === 'runa') return 'Run A'
-    if (value === runB || rawString(value).toLowerCase() === 'b' || rawString(value).toLowerCase() === 'runb') return 'Run B'
-    return compactString(value, 'Both runs', 20) === '[path hidden]' ? 'Both runs' : compactString(value, 'Both runs', 20)
+    if (value === runA || rawString(value).toLowerCase() === 'a' || rawString(value).toLowerCase() === 'runa') return '运行 A'
+    if (value === runB || rawString(value).toLowerCase() === 'b' || rawString(value).toLowerCase() === 'runb') return '运行 B'
+    return '两次运行'
   }
 
   function stepIndexes(value) {
@@ -512,7 +519,8 @@
 
   function displayDivergenceType(value) {
     const normalized = rawString(value).replace(/[-_]+/g, ' ').trim()
-    return compactString(normalized.replace(/\b\w/g, (letter) => letter.toUpperCase()), 'Trajectory mismatch', 64)
+    const labels = { repeated_tool_loop: '重复工具循环', extra_failed_command: '额外失败命令', unnecessary_file_churn: '不必要的文件修改', extra_search_read_path: '额外搜索与读取', test_execution_timing: '测试执行时机', failure_recovery: '失败后恢复', unrecovered_failure: '未恢复的失败' }
+    return labels[rawString(value)] || compactString(normalized, '执行路径差异', 64)
   }
 
   function renderDivergences(result) {
@@ -520,7 +528,7 @@
     elements.divergenceList.replaceChildren()
     elements.divergenceCount.textContent = divergences.length.toLocaleString()
     if (divergences.length === 0) {
-      elements.divergenceList.append(createTextElement('p', 'No trajectory divergences were reported for these runs.', 'divergence-empty'))
+      elements.divergenceList.append(createTextElement('p', '这两次运行没有检测到明显的执行路径差异。', 'divergence-empty'))
       return
     }
 
@@ -533,13 +541,14 @@
       const body = document.createElement('div')
       const meta = document.createElement('div')
       meta.className = 'divergence-meta'
+      const severityLabels = { critical: '严重', error: '错误', warning: '警告', warn: '警告', info: '提示', low: '提示' }
       meta.append(
-        createTextElement('span', severity, 'severity-badge'),
+        createTextElement('span', severityLabels[severity] || '警告', 'severity-badge'),
         createTextElement('span', divergenceRunLabel(item.run), 'run-chip'),
       )
       const indexes = stepIndexes(item.stepIndexes ?? item.step_indices ?? item.steps)
       if (indexes.length > 0) {
-        meta.append(createTextElement('span', indexes.length === 1 ? `Step ${indexes[0]}` : `Steps ${indexes.join(' · ')}`, 'step-chip'))
+        meta.append(createTextElement('span', indexes.length === 1 ? `步骤 ${indexes[0]}` : `步骤 ${indexes.join(' · ')}`, 'step-chip'))
       }
       body.append(meta)
       body.append(createTextElement('h4', displayDivergenceType(item.type), 'divergence-type'))
@@ -578,11 +587,11 @@
     const runB = selectedRun('b')
     const pillA = document.createElement('span')
     pillA.className = 'pair-pill pair-pill-a'
-    pillA.append(createTextElement('b', 'A', 'pair-letter'), createTextElement('span', runA ? compactString(runA.runId, 'Not selected', 24) : 'Not selected'))
-    const divider = createTextElement('span', 'vs', 'pair-divider')
+    pillA.append(createTextElement('b', 'A', 'pair-letter'), createTextElement('span', runA ? compactString(runA.runId, '未选择', 24) : '未选择'))
+    const divider = createTextElement('span', '对比', 'pair-divider')
     const pillB = document.createElement('span')
     pillB.className = 'pair-pill pair-pill-b'
-    pillB.append(createTextElement('b', 'B', 'pair-letter'), createTextElement('span', runB ? compactString(runB.runId, 'Not selected', 24) : 'Not selected'))
+    pillB.append(createTextElement('b', 'B', 'pair-letter'), createTextElement('span', runB ? compactString(runB.runId, '未选择', 24) : '未选择'))
     elements.compareRunPair.append(pillA, divider, pillB)
   }
 
@@ -593,13 +602,13 @@
     elements.compareEmpty.hidden = ready
     elements.compareContent.hidden = !ready || !state.compareResult || state.compareLoading
     elements.runComparison.disabled = !ready || state.compareLoading
-    elements.runComparison.querySelector('span:last-child').textContent = state.compareLoading ? 'Comparing…' : 'Run comparison'
+    elements.runComparison.querySelector('span:last-child').textContent = state.compareLoading ? '正在分析…' : '重新分析'
     if (!ready) {
       setFeedback(elements.compareFeedback, '', '')
       return
     }
     if (state.compareLoading) {
-      setFeedback(elements.compareFeedback, 'Comparing sanitized trajectories…', 'loading')
+      setFeedback(elements.compareFeedback, '正在对比脱敏执行轨迹…', 'loading')
       return
     }
     if (state.compareError) {
@@ -627,13 +636,15 @@
     try {
       const api = getApi()
       const result = await api.listRuns()
-      if (!Array.isArray(result)) throw new Error('Run archive returned an invalid summary list')
+      if (!Array.isArray(result)) throw new Error('会话库返回了无效摘要列表')
       state.runs = sortRuns(result.map(normalizeRun).filter(Boolean))
+      const baseline = state.runs.find((run) => run.isBaseline)
+      if (!state.selectedA && baseline) state.selectedA = baseline.runId
       if (!state.runs.some((run) => run.runId === state.selectedA)) state.selectedA = null
       if (!state.runs.some((run) => run.runId === state.selectedB)) state.selectedB = null
     } catch (error) {
       state.runs = []
-      state.runsError = `Unable to load runs: ${compactString(error && error.message, 'unknown bridge error', 160)}`
+      state.runsError = `无法加载运行记录：${compactString(error && error.message, '未知错误', 160)}`
     } finally {
       state.runsLoading = false
       renderRuns()
@@ -656,17 +667,35 @@
       const api = getApi()
       const result = await api.compareRuns(runA, runB)
       if (requestId !== state.compareRequest) return
-      if (!result || typeof result !== 'object') throw new Error('Comparison returned an invalid result')
+      if (!result || typeof result !== 'object') throw new Error('对比结果无效')
       state.compareResult = result
     } catch (error) {
       if (requestId !== state.compareRequest) return
-      state.compareError = `Unable to compare runs: ${compactString(error && error.message, 'unknown bridge error', 160)}`
+      state.compareError = `无法对比运行：${compactString(error && error.message, '未知错误', 160)}`
     } finally {
       if (requestId === state.compareRequest) {
         state.compareLoading = false
         renderCompare()
       }
     }
+  }
+
+  async function runAction(action, successText) {
+    if (!hasDistinctSelection() || !state.compareResult) return
+    elements.actionFeedback.textContent = '正在执行…'
+    try {
+      await action(getApi())
+      elements.actionFeedback.textContent = successText
+    } catch (error) {
+      elements.actionFeedback.textContent = `操作失败：${compactString(error && error.message, '未知错误', 120)}`
+    }
+  }
+
+  function betterRunId() {
+    const verdict = state.compareResult && state.compareResult.diagnosis && state.compareResult.diagnosis.verdict
+    if (verdict === 'a_better') return state.selectedA
+    if (verdict === 'b_better') return state.selectedB
+    return state.selectedB
   }
 
   function handleRunSelection(event) {
@@ -691,6 +720,18 @@
     elements.runsBody.addEventListener('click', handleRunSelection)
     elements.compareSelected.addEventListener('click', compareSelectedRuns)
     elements.runComparison.addEventListener('click', compareSelectedRuns)
+    elements.copyBrief.addEventListener('click', () => runAction(
+      (api) => api.copyOptimizationBrief(state.selectedA, state.selectedB),
+      '优化任务已复制，可直接粘贴到 DSH 开始下一轮。',
+    ))
+    elements.exportReport.addEventListener('click', () => runAction(
+      (api) => api.exportReport(state.selectedA, state.selectedB),
+      '对比报告已导出。',
+    ))
+    elements.setBaseline.addEventListener('click', () => runAction(
+      (api) => api.setBaseline(betterRunId()),
+      '更优运行已设为后续对比基线。',
+    ))
     elements.openRuns.addEventListener('click', () => setActiveTab('runs'))
     elements.tabRuns.addEventListener('keydown', (event) => {
       if (event.key === 'ArrowRight') {

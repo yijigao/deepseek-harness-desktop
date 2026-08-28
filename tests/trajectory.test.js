@@ -184,9 +184,9 @@ test('run comparison reports metric deltas and all deterministic divergence clas
   assert.ok(comparison.summary.efficiencySignals.includes('Run B used 13 fewer steps.'))
   assert.ok(comparison.summary.efficiencySignals.includes('Run B used 19 fewer tool calls.'))
   assert.equal(comparison.diagnosis.verdict, 'b_better')
-  assert.match(comparison.diagnosis.headline, /Run B/)
+  assert.match(comparison.diagnosis.headline, /运行 B/)
   assert.ok(comparison.diagnosis.findings.some((item) => item.text.includes('19 次工具调用')))
-  assert.ok(comparison.diagnosis.recommendations.some((item) => item.includes('Run A')))
+  assert.ok(comparison.diagnosis.recommendations.some((item) => item.includes('运行 A')))
   assert.match(comparison.diagnosis.caveat, /不判断最终产物/)
 
   const types = new Set(comparison.divergences.map((item) => item.type))
@@ -203,7 +203,7 @@ test('run comparison reports metric deltas and all deterministic divergence clas
   const loop = comparison.divergences.find((item) => item.type === 'repeated_tool_loop')
   assert.equal(loop.run, 'A')
   assert.equal(loop.stepIndexes.length, 3)
-  assert.match(loop.message, /repository search 3 times/)
+  assert.match(loop.message, /3 次仓库搜索/)
 })
 
 test('comparison reports recovered and unrecovered failures in the same run', () => {

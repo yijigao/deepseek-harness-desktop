@@ -4,9 +4,9 @@
   <p><strong>Stop benchmarking models. Benchmark the harness.</strong></p>
   <p>Compare execution trajectories across DeepSeek Harness runs — locally, side by side.</p>
   <p>
-    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v1.3.1/DeepSeek-Setup-1.3.1.exe"><strong>Download v1.3.1 for Windows</strong></a>
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v1.4.0/DeepSeek-Setup-1.4.0.exe"><strong>Download v1.4.0 for Windows</strong></a>
     ·
-    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v1.3.1">Release notes</a>
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v1.4.0">Release notes</a>
   </p>
   <p>
     <img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows" alt="Windows">

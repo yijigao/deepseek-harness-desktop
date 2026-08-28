@@ -756,6 +756,9 @@ h2 {
 .diagnosis-columns h4 { margin: 0 0 8px; color: var(--text-faint); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
 .diagnosis-columns ul { margin: 0; padding-left: 19px; color: var(--text-muted); font-size: 12px; line-height: 1.65; }
 .diagnosis-caveat { margin: 14px 0 0; color: var(--text-faint); font-size: 10px; }
+.diagnosis-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.action-feedback { min-height: 18px; margin: 9px 0 0; color: var(--accent-bright); font-size: 11px; }
+.baseline-badge { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: 5px; color: var(--accent-bright); background: var(--accent-soft); font-size: 9px; }
 
 .summary-card {
   min-height: 105px;

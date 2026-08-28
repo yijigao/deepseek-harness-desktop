@@ -7,7 +7,7 @@
  * Claude Code-styled window on top of it. Closing the window tears the
  * server down; a crash shows the log path in a dialog.
  */
-const { app, BrowserWindow, Menu, ipcMain, shell, dialog, net: electronNet } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog, clipboard, net: electronNet } = require('electron')
 const { spawn, spawnSync } = require('node:child_process')
 const path = require('node:path')
 const fs = require('node:fs')
@@ -446,11 +446,11 @@ function setupHarnessLabAutomation(win) {
       const report = await waitForHarnessLab(win, (candidate) => (
         candidate.compareVisible && candidate.summaryCards === 6 && candidate.divergences >= 4
       ))
-      const ok = report.title === 'Harness Lab'
+      const ok = report.title === '执行实验室'
         && report.runRows === 2
         && report.summaryCards === 6
         && report.divergences >= 4
-        && report.diagnosis === 'Run B 的执行轨迹整体更精简、稳定。'
+        && report.diagnosis === '运行 B 的执行轨迹整体更精简、稳定。'
         && report.compareVisible
       if (verify) {
         console.log(`HARNESS-LAB-VERIFY ${JSON.stringify(report)}`)
@@ -484,6 +484,38 @@ function harnessLabHandler(operation) {
       throw new Error('Harness Lab request failed')
     }
   }
+}
+
+function comparisonMarkdown(comparison) {
+  const diagnosis = comparison.diagnosis || {}
+  const findings = Array.isArray(diagnosis.findings) ? diagnosis.findings : []
+  const recommendations = Array.isArray(diagnosis.recommendations) ? diagnosis.recommendations : []
+  return [
+    '# Harness Lab 对比报告', '',
+    `## 结论`, '', diagnosis.headline || '暂无明确结论。', '',
+    '## 关键发现', '', ...findings.map((item) => `- ${item.text}`), '',
+    '## 下一步动作', '', ...recommendations.map((item) => `- ${item}`), '',
+    `> ${diagnosis.caveat || '结论只评价执行轨迹。'}`, '',
+  ].join('\n')
+}
+
+function optimizationBrief(comparison) {
+  const diagnosis = comparison.diagnosis || {}
+  const actions = Array.isArray(diagnosis.recommendations) ? diagnosis.recommendations : []
+  return [
+    '请基于上一轮执行复盘优化本次任务。',
+    diagnosis.headline || '',
+    ...actions.map((item, index) => `${index + 1}. ${item}`),
+    '要求：保持最终业务目标不变，减少无效工具调用；关键修改后及时运行最小验证；完成后报告采取的优化和验证结果。',
+  ].filter(Boolean).join('\n')
+}
+
+function baselinePath() {
+  return path.join(app.getPath('userData'), 'harness-lab-baseline.json')
+}
+
+function readBaselineId() {
+  try { return JSON.parse(fs.readFileSync(baselinePath(), 'utf8')).runId || null } catch { return null }
 }
 
 // ---- GitHub version check (major-version updates only) ---------------------
@@ -659,9 +691,32 @@ if (!gotLock) {
     return shell.openPath(dshHomePath())
   }))
 
-  ipcMain.handle('harness-lab:list-runs', harnessLabHandler((service) => service.listRuns()))
+  ipcMain.handle('harness-lab:list-runs', harnessLabHandler(async (service) => {
+    const baselineId = readBaselineId()
+    return (await service.listRuns()).map((run) => ({ ...run, isBaseline: run.runId === baselineId }))
+  }))
   ipcMain.handle('harness-lab:get-run', harnessLabHandler((service, runId) => service.getRun(runId)))
   ipcMain.handle('harness-lab:compare-runs', harnessLabHandler((service, runAId, runBId) => service.compare(runAId, runBId)))
+  ipcMain.handle('harness-lab:copy-brief', harnessLabHandler(async (service, runAId, runBId) => {
+    clipboard.writeText(optimizationBrief(await service.compare(runAId, runBId)))
+    return { copied: true }
+  }))
+  ipcMain.handle('harness-lab:export-report', harnessLabHandler(async (service, runAId, runBId) => {
+    const comparison = await service.compare(runAId, runBId)
+    const result = await dialog.showSaveDialog(harnessLabWindow, {
+      title: '导出 Harness Lab 对比报告',
+      defaultPath: `harness-lab-${new Date().toISOString().slice(0, 10)}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    })
+    if (result.canceled || !result.filePath) return { exported: false }
+    fs.writeFileSync(result.filePath, comparisonMarkdown(comparison), { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+    return { exported: true }
+  }))
+  ipcMain.handle('harness-lab:set-baseline', harnessLabHandler(async (service, runId) => {
+    await service.requireRun(runId)
+    fs.writeFileSync(baselinePath(), JSON.stringify({ runId, savedAt: new Date().toISOString() }), { mode: 0o600 })
+    return { saved: true }
+  }))
 
   // ---- lifecycle -------------------------------------------------------------
 
@@ -671,6 +726,7 @@ if (!gotLock) {
     harnessLabService = new HarnessLabSessionService({
       demoMode: HARNESS_LAB_DEMO,
       demoDir: harnessLabDemoDir(),
+      summaryCachePath: path.join(app.getPath('userData'), 'harness-lab-summary-cache.json'),
     })
     if (!app.isPackaged) {
       // Dev convenience: F12 toggles DevTools.
