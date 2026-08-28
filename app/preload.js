@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('ccDesktop', {
   openHarnessLab: () => ipcRenderer.send('cc:open-harness-lab'),
   openModelSettings: () => ipcRenderer.send('cc:open-model-settings'),
   getModelResources: () => ipcRenderer.invoke('cc:model-resources'),
+  getPinnedSessions: () => ipcRenderer.invoke('cc:get-session-pins'),
+  setPinnedSessions: (ids) => ipcRenderer.invoke('cc:set-session-pins', ids),
   isMaximized: () => ipcRenderer.invoke('cc:isMax'),
   onMaxChanged: (callback) => {
     ipcRenderer.on('cc:max-changed', (_event, value) => callback(Boolean(value)))

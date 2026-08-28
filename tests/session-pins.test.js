@@ -29,6 +29,9 @@ test('session pin implementation has no polling, observer, scan, or subprocess p
   assert.match(source, /pinnedSessionIds/)
   assert.match(source, /pinFirstRows/)
   assert.match(source, /slice\(0, 50\)/)
+  assert.match(source, /getPinnedSessions/)
+  assert.match(source, /setPinnedSessions/)
+  assert.match(source, /DSH_DESKTOP_SESSION_PINS_PERSISTENCE/)
 })
 
 test('pin ordering stays below the 5 ms budget for 2000 visible sessions', async () => {

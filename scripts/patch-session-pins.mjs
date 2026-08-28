@@ -30,6 +30,7 @@ export function pinFirstRows(rows, pinnedSessionIds) {
 
 const START = '/* DSH_DESKTOP_SESSION_PINS_START */'
 const END = '/* DSH_DESKTOP_SESSION_PINS_END */'
+const PERSISTENCE = '/* DSH_DESKTOP_SESSION_PINS_PERSISTENCE */'
 
 function replaceOnce(source, needle, replacement, label) {
   const first = source.indexOf(needle)
@@ -40,7 +41,23 @@ function replaceOnce(source, needle, replacement, label) {
 }
 
 export function patchWorkspaceClient(source) {
-  if (source.includes(START) && source.includes(END)) return { source, changed: false }
+  if (source.includes(PERSISTENCE)) return { source, changed: false }
+
+  const addPersistence = (input) => {
+    let persisted = replaceOnce(input,
+      '\t\t\t\t\ttogglePinnedSession: (d, sessionId) => {\n\t\t\t\t\t\tconst current = Array.isArray(d.pinnedSessionIds) ? d.pinnedSessionIds : [];\n\t\t\t\t\t\td.pinnedSessionIds = current.includes(sessionId)\n\t\t\t\t\t\t\t? current.filter((id) => id !== sessionId)\n\t\t\t\t\t\t\t: [sessionId, ...current].slice(0, 50);\n\t\t\t\t\t}',
+      '\t\t\t\t\treplacePinnedSessions: (d, sessionIds) => {\n\t\t\t\t\t\td.pinnedSessionIds = Array.isArray(sessionIds) ? sessionIds.slice(0, 50) : [];\n\t\t\t\t\t},\n\t\t\t\t\ttogglePinnedSession: (d, sessionId) => {\n\t\t\t\t\t\tconst current = Array.isArray(d.pinnedSessionIds) ? d.pinnedSessionIds : [];\n\t\t\t\t\t\tconst next = current.includes(sessionId)\n\t\t\t\t\t\t\t? current.filter((id) => id !== sessionId)\n\t\t\t\t\t\t\t: [sessionId, ...current].slice(0, 50);\n\t\t\t\t\t\td.pinnedSessionIds = next;\n\t\t\t\t\t\twindow.ccDesktop?.setPinnedSessions(next).catch(() => {});\n\t\t\t\t\t}',
+      'persistent store actions')
+    persisted = replaceOnce(persisted,
+      '\t\t\tconst pinnedSessionIds = useStore((s) => Array.isArray(s.pinnedSessionIds) ? s.pinnedSessionIds : []);',
+      '\t\t\tconst pinnedSessionIds = useStore((s) => Array.isArray(s.pinnedSessionIds) ? s.pinnedSessionIds : []);\n\t\t\t' + PERSISTENCE + '\n\t\t\t(0, react.useEffect)(() => {\n\t\t\t\tlet active = true;\n\t\t\t\twindow.ccDesktop?.getPinnedSessions().then((ids) => {\n\t\t\t\t\tif (active) actions.replacePinnedSessions(ids);\n\t\t\t\t}).catch(() => {});\n\t\t\t\treturn () => { active = false; };\n\t\t\t}, [actions.replacePinnedSessions]);',
+      'persistent store hydration')
+    return persisted
+  }
+
+  if (source.includes(START) && source.includes(END)) {
+    return { source: addPersistence(source), changed: true }
+  }
 
   let out = source
   out = replaceOnce(out,
@@ -144,7 +161,7 @@ export function patchWorkspaceClient(source) {
     '\t\tconst en = {\n\t\t\t"menu.pinSession": "Pin session",\n\t\t\t"menu.unpinSession": "Unpin session",\n\t\t\t"pin.pinned": "Pinned",\n',
     'English locale')
 
-  return { source: out, changed: true }
+  return { source: addPersistence(out), changed: true }
 }
 
 export function patchRuntime(runtimeRoot, checkOnly = false) {

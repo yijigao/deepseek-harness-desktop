@@ -22,6 +22,7 @@ const PRODUCT = 'DeepSeek'
 const APP_ID = 'com.deepseek.desktop'
 const WINDOW_BG = '#1f1e1d'
 const LOG_PATH = path.join(os.tmpdir(), 'deepseek-desktop.log')
+const MAX_PINNED_SESSIONS = 50
 
 let mainWindow = null
 let harnessLabWindow = null
@@ -31,6 +32,28 @@ let modelResourceService = null
 let serverChild = null
 let stopping = false
 let cachedPatchStatus = { ok: null, detail: '正在后台检测 OAuth 适配状态。' }
+
+function normalizePinnedSessionIds(value) {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 256))].slice(0, MAX_PINNED_SESSIONS)
+}
+
+function sessionPinsPath() {
+  return path.join(app.getPath('userData'), 'session-pins.json')
+}
+
+function readSessionPins() {
+  try { return normalizePinnedSessionIds(JSON.parse(fs.readFileSync(sessionPinsPath(), 'utf8'))) } catch { return [] }
+}
+
+function writeSessionPins(value) {
+  const pins = normalizePinnedSessionIds(value)
+  const target = sessionPinsPath()
+  const temporary = `${target}.tmp`
+  fs.writeFileSync(temporary, `${JSON.stringify(pins)}\n`, { encoding: 'utf8', mode: 0o600 })
+  fs.renameSync(temporary, target)
+  return pins
+}
 const HARNESS_LAB_DEMO = process.env.HARNESS_LAB_DEMO === '1' || process.argv.includes('--demo-harness-lab')
 const MODEL_SETTINGS_DEMO = process.argv.includes('--demo-model-settings') || process.argv.includes('--verify-model-settings')
 
@@ -746,6 +769,14 @@ if (!gotLock) {
   })
   ipcMain.on('cc:close', () => mainWindow?.close())
   ipcMain.handle('cc:isMax', () => mainWindow?.isMaximized() ?? false)
+  ipcMain.handle('cc:get-session-pins', (event) => {
+    if (!isTrustedSender(event, mainWindow)) throw new Error('Session pin request denied')
+    return readSessionPins()
+  })
+  ipcMain.handle('cc:set-session-pins', (event, value) => {
+    if (!isTrustedSender(event, mainWindow)) throw new Error('Session pin update denied')
+    return writeSessionPins(value)
+  })
   ipcMain.handle('cc:model-resources', (event) => {
     if (!isTrustedSender(event, mainWindow)) throw new Error('Resource request denied')
     modelResourceService?.scheduleRefresh().catch(() => {})
