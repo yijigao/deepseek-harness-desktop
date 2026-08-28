@@ -10,8 +10,12 @@ contextBridge.exposeInMainWorld('ccDesktop', {
   close: () => ipcRenderer.send('cc:close'),
   openHarnessLab: () => ipcRenderer.send('cc:open-harness-lab'),
   openModelSettings: () => ipcRenderer.send('cc:open-model-settings'),
+  getModelResources: () => ipcRenderer.invoke('cc:model-resources'),
   isMaximized: () => ipcRenderer.invoke('cc:isMax'),
   onMaxChanged: (callback) => {
     ipcRenderer.on('cc:max-changed', (_event, value) => callback(Boolean(value)))
+  },
+  onModelResources: (callback) => {
+    ipcRenderer.on('cc:model-resources-updated', (_event, value) => callback(value))
   },
 })

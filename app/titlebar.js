@@ -12,7 +12,8 @@
     bar.innerHTML = '<span class="cc-mark">\u2733</span>'
       + '<span class="cc-name">DeepSeek</span>'
       + '<button class="cc-lab" data-act="lab" title="Open Harness Lab">Harness Lab</button>'
-      + '<button class="cc-lab" data-act="settings" title="Models and runtime health">Models & Health</button>'
+      + '<button class="cc-lab" data-act="settings" title="模型资源中心">模型资源</button>'
+      + '<button class="cc-resource-chip" data-act="resources" title="打开模型资源中心"><span class="cc-resource-model">模型识别中</span><span class="cc-resource-quota">本机用量加载中</span></button>'
       + '<span class="cc-spacer"></span>'
       + '<button class="cc-btn" data-act="min" title="Minimize">\u2013</button>'
       + '<button class="cc-btn" data-act="max" title="Maximize">\u25A1</button>'
@@ -24,10 +25,31 @@
     const close = bar.querySelector('[data-act="close"]')
     const lab = bar.querySelector('[data-act="lab"]')
     const settings = bar.querySelector('[data-act="settings"]')
+    const resources = bar.querySelector('[data-act="resources"]')
     min.addEventListener('click', () => window.ccDesktop.minimize())
     close.addEventListener('click', () => window.ccDesktop.close())
     lab.addEventListener('click', () => window.ccDesktop.openHarnessLab())
     settings.addEventListener('click', () => window.ccDesktop.openModelSettings())
+    resources.addEventListener('click', () => window.ccDesktop.openModelSettings())
+    const compactModel = (model) => String(model || '未知模型').replace(/^gpt-/i, '').slice(0, 24)
+    const renderResources = (snapshot) => {
+      if (!snapshot || !resources) return
+      const model = resources.querySelector('.cc-resource-model')
+      const quota = resources.querySelector('.cc-resource-quota')
+      model.textContent = compactModel(snapshot.route?.model)
+      const primary = snapshot.quota?.windows?.[0]
+      if (Number.isFinite(primary?.remainingPercent)) {
+        const remaining = Math.round(primary.remainingPercent)
+        quota.textContent = `${primary.label || '额度'}剩余 ${remaining}%`
+        resources.dataset.level = remaining <= 10 ? 'critical' : remaining <= 30 ? 'warning' : 'ok'
+      } else {
+        const tokens = Number(snapshot.localUsage?.today?.totalTokens) || 0
+        quota.textContent = tokens > 0 ? `今日 ${new Intl.NumberFormat('zh-CN', { notation: 'compact' }).format(tokens)} tokens` : '额度后台更新中'
+        resources.dataset.level = 'unknown'
+      }
+    }
+    window.ccDesktop.onModelResources(renderResources)
+    window.ccDesktop.getModelResources().then(renderResources).catch(() => {})
     const renderMax = (isMax) => {
       max.textContent = isMax ? '\u2750' : '\u25A1'
       max.title = isMax ? 'Restore' : 'Maximize'

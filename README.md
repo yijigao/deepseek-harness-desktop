@@ -4,9 +4,9 @@
   <p><strong>Stop benchmarking models. Benchmark the harness.</strong></p>
   <p>Compare execution trajectories across DeepSeek Harness runs — locally, side by side.</p>
   <p>
-    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v2.0.0/DeepSeek-Setup-2.0.0.exe"><strong>Download v2.0.0 for Windows</strong></a>
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v2.1.0/DeepSeek-Setup-2.1.0.exe"><strong>Download v2.1.0 for Windows</strong></a>
     ·
-    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v2.0.0">Release notes</a>
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v2.1.0">Release notes</a>
   </p>
   <p>
     <img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows" alt="Windows">
@@ -66,6 +66,7 @@ Harness Lab 使用官方上游 session schema 和完全 synthetic fixtures 建�
 - **隐私优先开源**：源码仓库明确排除账号凭据、历史会话、日志、缓存、签名材料和本机构建产物。
 - **Harness Diff**：用确定性指标和规则比较两次执行的工具使用、失败恢复、搜索路径与文件 churn。
 - **订阅模型接入**：`config-example/` 提供 ChatGPT 订阅（OAuth）登录脚本与 OpenAI 兼容提供商（如火山方舟豆包）配置示例，构建流程自动注入运行时补丁。
+- **模型资源中心**：顶部常驻显示当前模型与可用额度；账户探测、会话扫描全部后台执行，账户服务不可用时自动降级为本机 Token 用量账本。
 
 ## 工作方式
 

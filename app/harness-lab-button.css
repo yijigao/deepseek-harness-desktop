@@ -16,3 +16,28 @@
   color: #faf9f5;
   background: rgba(217, 119, 87, 0.2);
 }
+
+#cc-titlebar .cc-resource-chip {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  margin-left: 8px;
+  padding: 0 10px;
+  gap: 7px;
+  border: 1px solid rgba(242, 238, 225, 0.12);
+  border-radius: 13px;
+  color: #d8d5ce;
+  background: rgba(255, 255, 255, 0.04);
+  font: 600 11px/1 'Segoe UI', sans-serif;
+  cursor: pointer;
+}
+
+#cc-titlebar .cc-resource-chip:hover { background: rgba(255, 255, 255, 0.08); }
+#cc-titlebar .cc-resource-model { color: #faf9f5; }
+#cc-titlebar .cc-resource-quota { color: #9b988e; font-weight: 500; }
+#cc-titlebar .cc-resource-chip[data-level="ok"] { border-color: rgba(111, 191, 115, 0.35); }
+#cc-titlebar .cc-resource-chip[data-level="warning"] { border-color: rgba(230, 178, 92, 0.55); }
+#cc-titlebar .cc-resource-chip[data-level="critical"] { border-color: rgba(232, 138, 138, 0.65); }
+#cc-titlebar .cc-resource-chip[data-level="warning"] .cc-resource-quota { color: #e6b25c; }
+#cc-titlebar .cc-resource-chip[data-level="critical"] .cc-resource-quota { color: #e88a8a; }

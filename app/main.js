@@ -16,6 +16,7 @@ const net = require('node:net')
 const http = require('node:http')
 const { pathToFileURL } = require('node:url')
 const { HarnessLabSessionService } = require('./lib/harness-lab/session-service')
+const { ModelResourceService } = require('./lib/model-resources/service')
 
 const PRODUCT = 'DeepSeek'
 const APP_ID = 'com.deepseek.desktop'
@@ -26,8 +27,10 @@ let mainWindow = null
 let harnessLabWindow = null
 let modelSettingsWindow = null
 let harnessLabService = null
+let modelResourceService = null
 let serverChild = null
 let stopping = false
+let cachedPatchStatus = { ok: null, detail: '正在后台检测 OAuth 适配状态。' }
 const HARNESS_LAB_DEMO = process.env.HARNESS_LAB_DEMO === '1' || process.argv.includes('--demo-harness-lab')
 const MODEL_SETTINGS_DEMO = process.argv.includes('--demo-model-settings') || process.argv.includes('--verify-model-settings')
 
@@ -74,9 +77,34 @@ function dshHomePath() {
 }
 
 function toolPath(name) {
+  const repositoryScript = new Set(['patch-pi-ai-oauth.mjs', 'model-resource-probe.mjs']).has(name)
   return app.isPackaged
     ? path.join(process.resourcesPath, 'tools', name)
-    : path.join(__dirname, '..', name === 'patch-pi-ai-oauth.mjs' ? 'scripts' : 'config-example', name)
+    : path.join(__dirname, '..', repositoryScript ? 'scripts' : 'config-example', name)
+}
+
+function probeCodexUsage() {
+  return new Promise((resolve) => {
+    const child = spawn(nodeExePath(), [toolPath('model-resource-probe.mjs'), resolveRuntimeRoot(), dshHomePath()], {
+      windowsHide: true,
+      env: { ...process.env, NODE_USE_ENV_PROXY: '1', DSH_HOME: dshHomePath() },
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    let output = ''
+    child.stdout.on('data', (chunk) => { output = `${output}${String(chunk)}`.slice(-65_536) })
+    const timer = setTimeout(() => {
+      try { child.kill() } catch {}
+      resolve({ ok: false, code: 'TIMEOUT' })
+    }, 10_000)
+    child.once('error', () => {
+      clearTimeout(timer)
+      resolve({ ok: false, code: 'PROBE_FAILED' })
+    })
+    child.once('exit', () => {
+      clearTimeout(timer)
+      try { resolve(JSON.parse(output.trim())) } catch { resolve({ ok: false, code: 'PROBE_FAILED' }) }
+    })
+  })
 }
 
 function iconPath() {
@@ -313,13 +341,32 @@ function readOAuthSummary() {
   }
 }
 
-function patchStatus() {
-  const result = spawnSync(nodeExePath(), [toolPath('patch-pi-ai-oauth.mjs'), resolveRuntimeRoot(), '--check'], {
-    windowsHide: true,
-    timeout: 30000,
-    encoding: 'utf8',
+function refreshPatchStatus() {
+  return new Promise((resolve) => {
+    const child = spawn(nodeExePath(), [toolPath('patch-pi-ai-oauth.mjs'), resolveRuntimeRoot(), '--check'], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let output = ''
+    const capture = (chunk) => { output = `${output}${String(chunk)}`.slice(-300) }
+    child.stdout.on('data', capture)
+    child.stderr.on('data', capture)
+    const timer = setTimeout(() => {
+      try { child.kill() } catch {}
+      cachedPatchStatus = { ok: null, detail: 'OAuth 适配检测超时，不影响窗口使用。' }
+      resolve(cachedPatchStatus)
+    }, 5000)
+    child.once('error', () => {
+      clearTimeout(timer)
+      cachedPatchStatus = { ok: false, detail: '无法启动 OAuth 适配检测。' }
+      resolve(cachedPatchStatus)
+    })
+    child.once('exit', (code) => {
+      clearTimeout(timer)
+      cachedPatchStatus = { ok: code === 0, detail: output.trim() || (code === 0 ? '兼容' : '需要修复') }
+      resolve(cachedPatchStatus)
+    })
   })
-  return { ok: result.status === 0, detail: String(result.stdout || result.stderr || '').trim().slice(0, 300) }
 }
 
 function modelHealth() {
@@ -333,8 +380,14 @@ function modelHealth() {
     dshHome: dshHomePath(),
     settingsPresent: fs.existsSync(path.join(dshHomePath(), 'settings.yaml')),
     oauth: readOAuthSummary(),
-    patch: patchStatus(),
+    patch: cachedPatchStatus,
+    resources: modelResourceService?.getCachedSnapshot() ?? null,
   }
+}
+
+function publishModelResources(snapshot) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('cc:model-resources-updated', snapshot)
+  if (modelSettingsWindow && !modelSettingsWindow.isDestroyed()) modelSettingsWindow.webContents.send('model-settings:resources-updated', snapshot)
 }
 
 async function createModelSettingsWindow() {
@@ -351,7 +404,7 @@ async function createModelSettingsWindow() {
     show: false,
     backgroundColor: '#171717',
     icon: iconPath(),
-    title: 'Models & Health',
+    title: 'Model Resources',
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -692,6 +745,11 @@ if (!gotLock) {
   })
   ipcMain.on('cc:close', () => mainWindow?.close())
   ipcMain.handle('cc:isMax', () => mainWindow?.isMaximized() ?? false)
+  ipcMain.handle('cc:model-resources', (event) => {
+    if (!isTrustedSender(event, mainWindow)) throw new Error('Resource request denied')
+    modelResourceService?.scheduleRefresh().catch(() => {})
+    return modelResourceService?.getCachedSnapshot() ?? null
+  })
   ipcMain.on('cc:open-harness-lab', (event) => {
     if (!isTrustedSender(event, mainWindow)) return
     createHarnessLabWindow().catch(() => {
@@ -700,10 +758,16 @@ if (!gotLock) {
   })
   ipcMain.on('cc:open-model-settings', (event) => {
     if (!isTrustedSender(event, mainWindow)) return
-    createModelSettingsWindow().catch(() => dialog.showErrorBox(PRODUCT, 'Could not open Models & Health.'))
+    createModelSettingsWindow().catch(() => dialog.showErrorBox(PRODUCT, '无法打开模型资源中心。'))
   })
   ipcMain.handle('model-settings:health', trustedSettingsHandler(() => modelHealth()))
+  ipcMain.handle('model-settings:resources', trustedSettingsHandler(() => {
+    modelResourceService?.scheduleRefresh().catch(() => {})
+    return modelResourceService?.getCachedSnapshot() ?? null
+  }))
+  ipcMain.handle('model-settings:refresh-resources', trustedSettingsHandler(() => modelResourceService?.scheduleRefresh({ force: true })))
   ipcMain.handle('model-settings:login', trustedSettingsHandler(() => runOAuthLogin()))
+  ipcMain.handle('model-settings:open-usage', trustedSettingsHandler(() => shell.openExternal('https://chatgpt.com/codex/settings/usage')))
   ipcMain.handle('model-settings:open-home', trustedSettingsHandler(() => {
     fs.mkdirSync(dshHomePath(), { recursive: true })
     return shell.openPath(dshHomePath())
@@ -768,6 +832,14 @@ if (!gotLock) {
       demoDir: harnessLabDemoDir(),
       summaryCachePath: path.join(app.getPath('userData'), 'harness-lab-summary-cache.json'),
     })
+    modelResourceService = new ModelResourceService({
+      dshHome: dshHomePath(),
+      probeCodexUsage: MODEL_SETTINGS_DEMO && process.env.MODEL_RESOURCES_LIVE !== '1' ? null : probeCodexUsage,
+    })
+    modelResourceService.on('updated', publishModelResources)
+    modelResourceService.startWatching()
+    setTimeout(() => modelResourceService?.scheduleRefresh({ force: true }).catch(() => {}), 250)
+    setTimeout(() => refreshPatchStatus().catch(() => {}), 500)
     if (!app.isPackaged) {
       // Dev convenience: F12 toggles DevTools.
       app.on('web-contents-created', (_event, contents) => {
@@ -800,17 +872,27 @@ if (!gotLock) {
           await delay(800)
           const report = await modelSettingsWindow.webContents.executeJavaScript(`(() => ({
             title: document.querySelector('h1')?.textContent,
-            cards: document.querySelectorAll('#health .card').length,
+            quotaCards: document.querySelectorAll('#quota-grid .quota-card').length,
+            usageCards: document.querySelectorAll('#local-usage .usage-card').length,
+            route: document.getElementById('route-name')?.textContent,
+            firstRenderMs: Number(document.body.dataset.resourceRenderMs || NaN),
             loginButton: Boolean(document.getElementById('login')),
             bodyBg: getComputedStyle(document.body).backgroundColor,
           }))()`)
-          const ok = report.title === '模型与运行健康' && report.cards >= 7 && report.loginButton
+          const ok = report.title === '模型资源中心' && report.quotaCards >= 1 && report.usageCards === 3
+            && report.loginButton && Number.isFinite(report.firstRenderMs) && report.firstRenderMs < 1000
           console.log(`MODEL-SETTINGS-VERIFY ${JSON.stringify(report)}`)
+          const modelSettingsShot = process.argv.find((arg) => arg.startsWith('--shot='))
+          if (modelSettingsShot) {
+            const target = screenshotTarget(modelSettingsShot)
+            writeScreenshot(target, await modelSettingsWindow.webContents.capturePage())
+            console.log(`MODEL-SETTINGS-SHOT ${target}`)
+          }
           process.exitCode = ok ? 0 : 1
           app.quit()
         }
       } catch (error) {
-        log(`Models & Health demo failed: ${String(error && error.message ? error.message : error)}`)
+        log(`Model Resources demo failed: ${String(error && error.message ? error.message : error)}`)
         process.exitCode = 1
         app.quit()
       }
@@ -904,6 +986,7 @@ if (!gotLock) {
 
   app.on('before-quit', () => {
     stopping = true
+    modelResourceService?.stopWatching()
     if (serverChild) {
       try { serverChild.kill() } catch {}
       serverChild = null

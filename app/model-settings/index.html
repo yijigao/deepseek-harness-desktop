@@ -4,15 +4,55 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Models & Health</title>
+  <title>模型资源中心</title>
   <link rel="stylesheet" href="styles.css">
   <script src="renderer.js" defer></script>
 </head>
 <body>
   <main>
-    <header><p class="eyebrow">LOCAL CONTROL CENTER</p><h1>模型与运行健康</h1><p>检查桌面运行时、配置和 ChatGPT 订阅登录状态。</p></header>
-    <section><div class="section-head"><h2>运行状态</h2><button id="refresh" class="secondary">刷新</button></div><div id="health" class="grid" aria-live="polite"></div></section>
-    <section><h2>ChatGPT 订阅</h2><p id="oauth-copy">检测登录状态中…</p><div class="actions"><button id="login">登录 ChatGPT</button><button id="open-home" class="secondary">打开 DSH 配置目录</button></div><p class="hint">登录会在独立进程中打开浏览器授权；凭据仅保存到本机 DSH_HOME。</p></section>
+    <header>
+      <p class="eyebrow">MODEL RESOURCE CENTER</p>
+      <h1>模型资源中心</h1>
+      <p>看清当前模型消耗哪个资源池、还剩多少，以及什么时候恢复。</p>
+    </header>
+
+    <section class="hero-section">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">当前对话路由</p>
+          <h2 id="route-name">正在识别模型…</h2>
+          <p id="route-meta" class="muted">先显示本地缓存，账户数据在后台更新。</p>
+        </div>
+        <span id="quota-state" class="status-pill">后台更新中</span>
+      </div>
+      <div id="quota-grid" class="quota-grid" aria-live="polite"></div>
+      <p id="quota-message" class="hint"></p>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div><p class="section-kicker">本机可观察范围</p><h2>用量账本</h2></div>
+        <span id="usage-scope" class="muted small"></span>
+      </div>
+      <div id="local-usage" class="usage-grid" aria-live="polite"></div>
+      <p class="hint">本机账本来自 DSH 会话，不代表整个账户的全部使用量。</p>
+    </section>
+
+    <section>
+      <div class="section-head"><h2>立即可做</h2><button id="refresh" class="secondary">后台刷新</button></div>
+      <div class="actions">
+        <button id="open-usage">打开官方用量页面</button>
+        <button id="login" class="secondary">登录 ChatGPT</button>
+        <button id="open-home" class="secondary">打开 DSH 配置目录</button>
+      </div>
+      <p id="recommendation" class="recommendation"></p>
+    </section>
+
+    <details>
+      <summary>桌面与运行时健康</summary>
+      <div id="health" class="health-grid" aria-live="polite"></div>
+      <p id="oauth-copy" class="hint">检测登录状态中…</p>
+    </details>
     <div id="feedback" role="status" aria-live="polite"></div>
   </main>
 </body>

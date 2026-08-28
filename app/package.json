@@ -1,7 +1,7 @@
 {
   "name": "deepseek-desktop",
   "productName": "DeepSeek",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Community-maintained Windows desktop shell for DeepSeek Harness",
   "author": "DeepSeek Harness Desktop contributors",
   "license": "MIT",
@@ -55,7 +55,8 @@
       { "from": "../staging/payload", "to": "." },
       { "from": "../config-example/oauth-login-openai-codex.mjs", "to": "tools/oauth-login-openai-codex.mjs" },
       { "from": "../config-example/test-openai-codex.mjs", "to": "tools/test-openai-codex.mjs" },
-      { "from": "../scripts/patch-pi-ai-oauth.mjs", "to": "tools/patch-pi-ai-oauth.mjs" }
+      { "from": "../scripts/patch-pi-ai-oauth.mjs", "to": "tools/patch-pi-ai-oauth.mjs" },
+      { "from": "../scripts/model-resource-probe.mjs", "to": "tools/model-resource-probe.mjs" }
     ],
     "win": {
       "icon": "build/icon.ico",

@@ -34,25 +34,28 @@ test('Harness Lab preload exposes only the approved query and action methods', (
   assert.deepEqual(exposedMethods, ['compareRuns', 'copyOptimizationBrief', 'copyRunFix', 'exportReport', 'getRun', 'listRuns', 'openOriginal', 'setBaseline'])
 })
 
-test('Models & Health remains a sandboxed local control surface', () => {
+test('Model Resources remains a sandboxed local control surface', () => {
   const main = read('app/main.js')
   const preload = read('app/model-settings/preload.js')
   const html = read('app/model-settings/index.html')
   const renderer = read('app/model-settings/renderer.js')
-  assert.match(main, /title: 'Models & Health'/)
+  assert.match(main, /title: 'Model Resources'/)
   assert.match(main, /contextIsolation:\s*true/)
   assert.match(main, /nodeIntegration:\s*false/)
   assert.match(main, /sandbox:\s*true/)
   assert.match(main, /isTrustedSender\(event, modelSettingsWindow\)/)
   assert.deepEqual(
     [...preload.matchAll(/^\s{2}([A-Za-z]+):/gm)].map((match) => match[1]).sort(),
-    ['getHealth', 'loginChatGPT', 'openDshHome'],
+    ['getHealth', 'getResources', 'loginChatGPT', 'onResources', 'openDshHome', 'openUsageDashboard', 'refreshResources'],
   )
   assert.match(html, /connect-src 'none'/)
   assert.doesNotMatch(html, /https?:\/\//)
   assert.doesNotMatch(renderer, /\b(?:require|process|Buffer|fetch|XMLHttpRequest|WebSocket|eval)\b/)
   assert.doesNotMatch(renderer, /\.innerHTML\s*=/)
   assert.doesNotMatch(main, /accessToken|refreshToken/)
+  assert.match(main, /ModelResourceService/)
+  assert.match(read('app/lib/model-resources/service.js'), /new Worker\(/)
+  assert.doesNotMatch(main, /function modelHealth\(\)[\s\S]{0,800}spawnSync/)
 })
 
 test('Harness Lab renderer is static, local, and has no Node or arbitrary network access', () => {
