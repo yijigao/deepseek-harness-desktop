@@ -7,7 +7,7 @@
  * Claude Code-styled window on top of it. Closing the window tears the
  * server down; a crash shows the log path in a dialog.
  */
-const { app, BrowserWindow, Menu, ipcMain, shell, dialog, clipboard, net: electronNet } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog, clipboard, nativeImage, net: electronNet } = require('electron')
 const { spawn, spawnSync } = require('node:child_process')
 const path = require('node:path')
 const fs = require('node:fs')
@@ -205,6 +205,7 @@ function injectDesktopFrame(win) {
     const themeCss = readInjected('claude-theme.css')
     const harnessLabButtonCss = readInjected('harness-lab-button.css')
     const titlebarJs = readInjected('titlebar.js')
+      .replace('__DEEPSEEK_LOGO_DATA_URL__', nativeImage.createFromPath(iconPath()).resize({ width: 18, height: 18 }).toDataURL())
     if (themeCss) win.webContents.insertCSS(themeCss, { cssOrigin: 'author' }).catch(() => {})
     if (harnessLabButtonCss) win.webContents.insertCSS(harnessLabButtonCss, { cssOrigin: 'author' }).catch(() => {})
     const forceDark = `(() => {

@@ -1,5 +1,5 @@
 /*
- * Claude Code theme �?applied by the DeepSeek Desktop shell on top of the
+ * Claude Code theme �?applied by the DeepSeek Desktop shell on top of the
  * DeepSeek Harness web GUI. The UI is fully token-driven, so overriding the
  * `--dsw-*` sheets re-skins everything coherently: warm dark backgrounds,
  * terracotta accent, warm-olive borders.
@@ -8,7 +8,7 @@
 /* ── static token sheet (dark) ─────────────────────────────────────────── */
 
 html body[data-ds-dark-theme] {
-  /* warm neutrals: #1f1e1d chrome �?#faf9f5 text */
+  /* warm neutrals: #1f1e1d chrome �?#faf9f5 text */
   --dsw-static-neutral-00: #ffffff;
   --dsw-static-neutral-50: #faf9f5;
   --dsw-static-neutral-60: #f4f3ee;
@@ -52,7 +52,7 @@ html body[data-ds-dark-theme] {
   --dsw-static-neutral-bluish-950: #1c1b19;
   --dsw-static-neutral-bluish-1000: #121211;
 
-  /* brand: DeepSeek blue �?Claude terracotta */
+  /* brand: DeepSeek blue �?Claude terracotta */
   --dsw-static-deepseek-50: #fcf1eb;
   --dsw-static-deepseek-100: #f6e2d6;
   --dsw-static-deepseek-200: #ecc9b6;
@@ -217,9 +217,11 @@ html body[data-ds-dark-theme] ::selection {
 }
 
 #cc-titlebar .cc-mark {
-  color: #d97757;
-  font-size: 15px;
-  line-height: 1;
+  display: block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex: 0 0 18px;
 }
 
 #cc-titlebar .cc-name {

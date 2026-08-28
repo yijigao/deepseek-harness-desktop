@@ -9,7 +9,7 @@
     if (!document.body || document.getElementById('cc-titlebar')) return
     const bar = document.createElement('div')
     bar.id = 'cc-titlebar'
-    bar.innerHTML = '<span class="cc-mark">\u2733</span>'
+    bar.innerHTML = '<img class="cc-mark" src="__DEEPSEEK_LOGO_DATA_URL__" alt="" draggable="false">'
       + '<span class="cc-name">DeepSeek</span>'
       + '<button class="cc-lab" data-act="lab" title="Open Harness Lab">Harness Lab</button>'
       + '<button class="cc-lab" data-act="settings" title="模型资源中心">模型资源</button>'
