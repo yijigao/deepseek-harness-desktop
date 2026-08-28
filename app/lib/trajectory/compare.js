@@ -173,6 +173,80 @@ function publicRunSummary(run, label) {
   }
 }
 
+function buildDiagnosis(runA, runB, metricDiffs, divergences) {
+  const findings = []
+  const recommendations = []
+  const delta = (name) => metricDiffs[name]?.available ? metricDiffs[name].delta : null
+  const fewer = (name, noun) => {
+    const value = delta(name)
+    if (!value) return
+    const better = value < 0 ? 'B' : 'A'
+    findings.push({
+      tone: 'positive',
+      text: `Run ${better} 少用了 ${Math.abs(value).toLocaleString()} ${noun}。`,
+    })
+  }
+
+  fewer('tool_calls', '次工具调用')
+  fewer('total_steps', '个执行步骤')
+  fewer('retry_count', '次重试')
+  fewer('failed_tool_calls', '次失败工具调用')
+
+  const durationDelta = delta('duration_ms')
+  if (durationDelta) {
+    const faster = durationDelta < 0 ? 'B' : 'A'
+    findings.push({ tone: 'positive', text: `Run ${faster} 用时更短，差值约 ${Math.round(Math.abs(durationDelta) / 1000).toLocaleString()} 秒。` })
+  }
+
+  const warningsByRun = { A: [], B: [] }
+  for (const item of divergences) {
+    if ((item.severity === 'warning' || item.severity === 'error') && warningsByRun[item.run]) {
+      warningsByRun[item.run].push(item.type)
+    }
+  }
+  for (const label of ['A', 'B']) {
+    const types = new Set(warningsByRun[label])
+    if (types.has('repeated_tool_loop')) recommendations.push(`检查 Run ${label} 的提示词或搜索策略，避免对相同参数重复调用工具。`)
+    if (types.has('extra_failed_command') || types.has('unrecovered_failure')) recommendations.push(`优先修复 Run ${label} 的失败命令，并在重试前调整参数或执行路径。`)
+    if (types.has('unnecessary_file_churn')) recommendations.push(`收紧 Run ${label} 的文件修改范围，并在写入前明确目标文件。`)
+  }
+  const lateTest = divergences.find((item) => item.type === 'test_execution_timing')
+  if (lateTest) recommendations.push(`Run ${lateTest.run} 较晚运行测试；建议在关键修改后更早执行最小验证。`)
+
+  const statusRank = (status) => status === 'success' ? 2 : status === 'failed' || status === 'error' ? 0 : 1
+  const rankA = statusRank(runA.status)
+  const rankB = statusRank(runB.status)
+  let winner = null
+  if (rankA !== rankB) winner = rankA > rankB ? 'A' : 'B'
+  else {
+    const score = (label) => {
+      const sign = label === 'A' ? -1 : 1
+      return (
+        (delta('failed_tool_calls') ?? 0) * sign * 8
+        + (delta('retry_count') ?? 0) * sign * 4
+        + (delta('tool_calls') ?? 0) * sign
+        + (delta('total_steps') ?? 0) * sign
+      )
+    }
+    const scoreA = score('A')
+    const scoreB = score('B')
+    if (scoreA !== scoreB) winner = scoreA < scoreB ? 'A' : 'B'
+  }
+
+  const headline = winner
+    ? `Run ${winner} 的执行轨迹整体更精简、稳定。`
+    : '两次运行各有取舍，暂时没有明确更优者。'
+  if (recommendations.length === 0) recommendations.push('当前未发现明显的规则级问题；结合最终产物质量决定保留哪次配置。')
+
+  return {
+    verdict: winner ? `${winner.toLowerCase()}_better` : 'mixed',
+    headline,
+    findings: findings.slice(0, 5),
+    recommendations: [...new Set(recommendations)].slice(0, 4),
+    caveat: '结论只评价执行轨迹，不判断最终产物的业务质量。',
+  }
+}
+
 function compareRuns(runA, runB) {
   if (!runA || !runB) throw new TypeError('Two canonical runs are required')
   const metricDiffs = {}
@@ -188,6 +262,8 @@ function compareRuns(runA, runB) {
   compareTestTiming(divergences, analysisA, analysisB)
   compareRecovery(divergences, analysisA, analysisB)
 
+  const diagnosis = buildDiagnosis(runA, runB, metricDiffs, divergences)
+
   return {
     summary: {
       runA: publicRunSummary(runA, 'A'),
@@ -196,6 +272,7 @@ function compareRuns(runA, runB) {
     },
     metricDiffs,
     divergences,
+    diagnosis,
   }
 }
 

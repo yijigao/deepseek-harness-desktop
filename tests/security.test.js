@@ -95,6 +95,7 @@ test('Harness Lab automation re-queries rows after each state-changing selection
   const main = read('app/main.js')
   assert.match(main, /const selectRun = \(rowIndex, side\) => document\s*\.querySelectorAll\('#runs-body tr'\)\[rowIndex\]/)
   assert.match(main, /selectRun\(0, 'a'\)\s*selectRun\(1, 'b'\)\s*document\.getElementById\('compare-selected'\)\?\.click\(\)/)
+  assert.match(main, /report\.diagnosis === 'Run B 的执行轨迹整体更精简、稳定。'/)
 })
 
 test('all committed JSONL fixtures are explicitly synthetic', () => {

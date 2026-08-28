@@ -400,6 +400,7 @@ async function harnessLabReport(win) {
     runRows: document.querySelectorAll('#runs-body tr').length,
     summaryCards: document.querySelectorAll('#summary-cards .summary-card').length,
     divergences: document.querySelectorAll('#divergence-list .divergence-card').length,
+    diagnosis: document.getElementById('diagnosis-headline')?.textContent,
     compareVisible: !document.getElementById('compare-content')?.hidden,
     feedback: document.getElementById('runs-feedback')?.textContent,
   }))()`)
@@ -449,6 +450,7 @@ function setupHarnessLabAutomation(win) {
         && report.runRows === 2
         && report.summaryCards === 6
         && report.divergences >= 4
+        && report.diagnosis === 'Run B 的执行轨迹整体更精简、稳定。'
         && report.compareVisible
       if (verify) {
         console.log(`HARNESS-LAB-VERIFY ${JSON.stringify(report)}`)

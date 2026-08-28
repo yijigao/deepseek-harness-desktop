@@ -183,6 +183,11 @@ test('run comparison reports metric deltas and all deterministic divergence clas
   assert.equal(comparison.metricDiffs.total_tokens.available, true)
   assert.ok(comparison.summary.efficiencySignals.includes('Run B used 13 fewer steps.'))
   assert.ok(comparison.summary.efficiencySignals.includes('Run B used 19 fewer tool calls.'))
+  assert.equal(comparison.diagnosis.verdict, 'b_better')
+  assert.match(comparison.diagnosis.headline, /Run B/)
+  assert.ok(comparison.diagnosis.findings.some((item) => item.text.includes('19 次工具调用')))
+  assert.ok(comparison.diagnosis.recommendations.some((item) => item.includes('Run A')))
+  assert.match(comparison.diagnosis.caveat, /不判断最终产物/)
 
   const types = new Set(comparison.divergences.map((item) => item.type))
   for (const expected of [

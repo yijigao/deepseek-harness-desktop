@@ -739,6 +739,24 @@ h2 {
   margin-bottom: 17px;
 }
 
+.diagnosis-panel {
+  margin-bottom: 17px;
+  padding: 20px;
+  border: 1px solid var(--accent-line);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(217, 119, 87, 0.13), rgba(23, 25, 28, 0.9) 55%);
+  box-shadow: var(--shadow);
+}
+
+.diagnosis-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.diagnosis-heading h3 { margin: 0; font-size: 18px; }
+.local-badge { padding: 5px 9px; border-radius: 999px; color: var(--accent-bright); background: var(--accent-soft); font-size: 10px; font-weight: 700; }
+.diagnosis-headline { margin: 16px 0; color: var(--text); font-size: 20px; font-weight: 680; letter-spacing: -0.02em; }
+.diagnosis-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.diagnosis-columns h4 { margin: 0 0 8px; color: var(--text-faint); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.diagnosis-columns ul { margin: 0; padding-left: 19px; color: var(--text-muted); font-size: 12px; line-height: 1.65; }
+.diagnosis-caveat { margin: 14px 0 0; color: var(--text-faint); font-size: 10px; }
+
 .summary-card {
   min-height: 105px;
   padding: 14px;

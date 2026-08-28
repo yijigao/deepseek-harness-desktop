@@ -53,6 +53,10 @@
     runComparison: document.getElementById('run-comparison'),
     compareContent: document.getElementById('compare-content'),
     summaryCards: document.getElementById('summary-cards'),
+    diagnosisHeadline: document.getElementById('diagnosis-headline'),
+    diagnosisFindings: document.getElementById('diagnosis-findings'),
+    diagnosisRecommendations: document.getElementById('diagnosis-recommendations'),
+    diagnosisCaveat: document.getElementById('diagnosis-caveat'),
     divergenceCount: document.getElementById('divergence-count'),
     divergenceList: document.getElementById('divergence-list'),
     metricDiffs: document.getElementById('metric-diffs'),
@@ -470,6 +474,23 @@
     }
   }
 
+  function renderDiagnosis(result) {
+    const diagnosis = result && result.diagnosis && typeof result.diagnosis === 'object' ? result.diagnosis : {}
+    elements.diagnosisHeadline.textContent = summaryString(diagnosis.headline, '暂无足够信息生成执行结论。')
+    elements.diagnosisFindings.replaceChildren()
+    const findings = Array.isArray(diagnosis.findings) ? diagnosis.findings : []
+    for (const finding of findings.slice(0, 5)) {
+      elements.diagnosisFindings.append(createTextElement('li', summaryString(finding && finding.text, '指标发生变化。')))
+    }
+    if (findings.length === 0) elements.diagnosisFindings.append(createTextElement('li', '关键执行指标没有明显差异。'))
+    elements.diagnosisRecommendations.replaceChildren()
+    const recommendations = Array.isArray(diagnosis.recommendations) ? diagnosis.recommendations : []
+    for (const recommendation of recommendations.slice(0, 4)) {
+      elements.diagnosisRecommendations.append(createTextElement('li', summaryString(recommendation, '结合最终产物质量人工复核。')))
+    }
+    elements.diagnosisCaveat.textContent = summaryString(diagnosis.caveat, '结论只评价执行轨迹。')
+  }
+
   function normalizeSeverity(value) {
     const severity = rawString(value).toLowerCase().replace(/\s+/g, '-')
     return ['critical', 'error', 'warning', 'warn', 'info', 'low'].includes(severity) ? severity : 'warning'
@@ -589,6 +610,7 @@
     }
     setFeedback(elements.compareFeedback, '', '')
     if (state.compareResult) {
+      renderDiagnosis(state.compareResult)
       renderSummaryCards(state.compareResult)
       renderDivergences(state.compareResult)
       renderMetricDiffs(state.compareResult)

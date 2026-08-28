@@ -128,6 +128,18 @@
           </div>
 
           <div id="compare-content" hidden>
+            <section class="diagnosis-panel" aria-labelledby="diagnosis-title">
+              <div class="diagnosis-heading">
+                <div><p class="section-kicker">本地规则诊断</p><h3 id="diagnosis-title">执行结论</h3></div>
+                <span class="local-badge">无需联网</span>
+              </div>
+              <p id="diagnosis-headline" class="diagnosis-headline"></p>
+              <div class="diagnosis-columns">
+                <div><h4>关键发现</h4><ul id="diagnosis-findings"></ul></div>
+                <div><h4>建议动作</h4><ul id="diagnosis-recommendations"></ul></div>
+              </div>
+              <p id="diagnosis-caveat" class="diagnosis-caveat"></p>
+            </section>
             <div id="summary-cards" class="summary-cards" aria-label="Comparison summary"></div>
 
             <div class="compare-grid">
