@@ -102,6 +102,10 @@ Log 'patching pi-ai OAuth credential seam'
 & $node (Join-Path $dshexe 'scripts\patch-pi-ai-oauth.mjs') $runtimeNew 2>&1 | ForEach-Object { Log "patch-pi-ai: $_" }
 if ($LASTEXITCODE -ne 0) { Log 'pi-ai OAuth patch FAILED — aborting build'; exit 9 }
 
+Log 'patching native session pin support'
+& $node (Join-Path $dshexe 'scripts\patch-session-pins.mjs') $runtimeNew 2>&1 | ForEach-Object { Log "patch-session-pins: $_" }
+if ($LASTEXITCODE -ne 0) { Log 'session pin patch FAILED — aborting build'; exit 10 }
+
 Log 'smoke-testing flattened runtime'
 & $node (Join-Path $dshexe 'scripts\test-runtime.mjs') $runtimeNew 2>&1 | ForEach-Object { Log "test: $_" }
 if ($LASTEXITCODE -ne 0) { Log 'runtime smoke test FAILED — keeping current runtime'; exit 6 }

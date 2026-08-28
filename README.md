@@ -1,166 +1,85 @@
 <div align="center">
   <img src="assets/deepseek-whale-225.png" width="88" alt="DeepSeek Harness Desktop logo">
   <h1>DeepSeek Harness Desktop</h1>
-  <p><strong>Stop benchmarking models. Benchmark the harness.</strong></p>
-  <p>Compare execution trajectories across DeepSeek Harness runs — locally, side by side.</p>
+  <p><strong>让 DeepSeek Harness 成为更顺手的 Windows 桌面应用。</strong></p>
+  <p>会话置顶 · 模型用量中心 · 本地执行轨迹分析</p>
+  <p><a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v2.2.0/DeepSeek-Setup-2.2.0.exe"><strong>下载 v2.2.0 安装版</strong></a> · <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v2.2.0">版本说明</a></p>
   <p>
-    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v2.1.0/DeepSeek-Setup-2.1.0.exe"><strong>Download v2.1.0 for Windows</strong></a>
-    ·
-    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v2.1.0">Release notes</a>
-  </p>
-  <p>
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/yijigao/deepseek-harness-desktop?label=release" alt="Latest release"></a>
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/releases"><img src="https://img.shields.io/github/downloads/yijigao/deepseek-harness-desktop/total" alt="Downloads"></a>
+    <a href="https://github.com/yijigao/deepseek-harness-desktop/stargazers"><img src="https://img.shields.io/github/stars/yijigao/deepseek-harness-desktop?style=flat" alt="GitHub stars"></a>
     <img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows" alt="Windows">
-    <img src="https://img.shields.io/badge/Electron-43-47848F?logo=electron" alt="Electron 43">
-    <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   </p>
 </div>
 
-Harness Lab 让你在同一视图中比较两个 run 的执行轨迹：不只看最终答案，还能直接看到 agent 如何完成任务、付出了多少执行成本，以及差异发生在哪里。
+DeepSeek Harness Desktop 是由社区维护的 Windows 桌面封装：把完整的 `dsh web` 运行时放进独立 Electron 窗口，同时补上高频会话管理、模型资源可见性和本地 Harness 分析能力。
 
-![Harness Lab Compare](assets/screenshots/harness-lab-compare.png)
-
-> 截图展示内置 Demo Mode 的 **synthetic comparison**。Run A / Run B 数字均为合成 fixture 数据，只用于演示比较流程；它们不是模型性能 benchmark，也不代表任何性能提升。
-
-## Harness Lab
-
-**Compare execution trajectories** and inspect:
-
-- **Steps / tool calls / retries / failures** — quantify execution effort and reliability.
-- **Repeated tool loops** — surface duplicated calls detected by deterministic rules.
-- **Failed commands** — show command failures and whether a run recovered.
-- **Unnecessary file churn** — compare extra file reads, writes, and search paths.
-- **Test timing / failure recovery** — see when tests ran and how each run behaved after failure.
-- **Local-first privacy** — parsing stays on the local machine; the UI receives sanitized metrics and summaries, not raw prompts, credentials, or absolute paths.
-
-Runs discovers recent sessions and lets you select Run A / Run B. Compare places Duration, Steps, Tool Calls, Failures, Retries, and Tokens beside explainable trajectory divergences.
-
-DeepSeek Harness Desktop 是一个由社区维护的 Windows 桌面封装。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 完整的 `dsh web` 运行时与 Web GUI 放进独立 Electron 窗口；Harness Lab 则作为独立的本地 Desktop UI 与 Harness Web 并列运行。
+> [!TIP]
+> 如果这个项目让 DeepSeek Harness 更好用，欢迎点一个 **Star**，帮助更多人发现它。
 
 > [!IMPORTANT]
-> 这是社区项目，不是 DeepSeek 官方桌面客户端，也不代表 DeepSeek 官方立场。
+> 本项目为非官方社区项目，不代表 DeepSeek 官方立场。
 
-Harness Lab 使用官方上游 session schema 和完全 synthetic fixtures 建立 MVP 基线。详细字段、兼容性边界与启发式规则见 [Session Format Audit](docs/session-format-audit.md) 和 [Harness Lab MVP](docs/harness-lab.md)。
+## v2.2.0 有什么新功能
 
-> Schema-derived, synthetic-tested, and smoke-validated against a locally
-> generated minimal DeepSeek Harness session.
-
-## 界面预览
-
-### 专注的桌面工作区
+- **原生会话置顶**：在会话菜单中置顶或取消置顶，结果持久保存。排序发生在 React 数据层，不使用 DOM 轮询、观察器或后台扫描。
+- **模型资源中心**：顶部常驻显示当前模型，并在提供商允许时展示用量、余额与重置时间；服务不可用时降级到本地 Token 用量。
+- **Harness Lab**：在本机比较两次任务的执行轨迹，查看工具调用、重试、失败恢复、重复循环与文件变动，而不是把不同目标的任务当作模型排行榜。
+- **完整桌面体验**：独立窗口、原生窗口控制、共享现有 Harness 配置和会话，关闭应用时同步回收本地服务。
 
 ![DeepSeek Harness Desktop 主界面](assets/screenshots/workspace.png)
 
-### 完整保留 Harness 设置能力
+## 快速开始
+
+1. 从 [Releases](https://github.com/yijigao/deepseek-harness-desktop/releases/latest) 下载安装版或便携版。
+2. 安装并启动 DeepSeek Harness Desktop。
+3. 继续使用原有 `DSH_HOME`（默认 `%USERPROFILE%\.dsh`）中的设置和会话。
+
+应用只在 `127.0.0.1` 的随机端口启动 `dsh web`。账号凭据、历史会话、日志和本地配置不会被复制进项目目录。
+
+## 会话置顶
+
+在任意会话的菜单中选择“置顶会话”。空白的新会话始终位于最前，其后是已置顶会话，再后是普通会话。最多保存 50 个置顶会话 ID，避免长期使用造成无界增长。
+
+该功能直接作用于会话数据层，没有 `MutationObserver`、定时器、页面扫描或额外子进程，设计目标是让长会话列表仍保持流畅。
+
+## 模型资源中心
+
+模型资源中心优先读取提供商返回的真实账户信息，展示当前模型、用量或余额以及重置时间。若提供商不开放这些数据，则明确降级为本机会话 Token 统计，不伪造“余额”。账户探测和会话统计均在后台执行，不阻塞主界面启动与操作。
+
+## Harness Lab
+
+![Harness Lab 执行轨迹对比](assets/screenshots/harness-lab-compare.png)
+
+Harness Lab 用来回答“这次任务是怎样完成的，以及哪里值得改进”，而不是笼统判断两个不同目标的任务谁更好。选择两次有关联的运行后，可以比较：
+
+- 步骤、工具调用、重试、失败和耗时；
+- 重复工具循环与失败后的恢复路径；
+- 不必要的文件读取、写入与搜索路径；
+- 测试执行时机和执行路线差异。
+
+分析在本机完成。渲染层只接收净化后的指标、工具类别、通用摘要和文件 basename，不接收原始 Prompt、凭据或绝对路径。
+
+> 截图使用内置的合成演示数据，仅用于展示比较流程，不是模型性能 benchmark，也不代表性能提升。
+
+> Schema-derived, synthetic-tested, and smoke-validated against a locally generated minimal DeepSeek Harness session.
+
+## 设置与兼容性
 
 ![DeepSeek Harness Desktop 设置界面](assets/screenshots/settings.png)
 
-## 项目亮点
+桌面版保留工作区、模型、插件、Agent 预设、权限和语言等 Harness 原生能力，并直接复用现有 `DSH_HOME`。[`config-example/`](config-example/README.md) 提供多提供商与 ChatGPT 订阅 OAuth 路由的配置示例；仓库不包含任何真实凭据。
 
-- **双击即用**：将命令行启动流程封装为标准 Windows 应用，安装版和便携版均可构建。
-- **原生桌面体验**：独立窗口、自绘标题栏、最小化/最大化/关闭控制，以及经过统一设计的深色主题。
-- **完整 Harness 能力**：保留工作区、模型、插件、Agent 预设、权限和语言等原生功能。
-- **本机安全运行**：`dsh web` 仅监听 `127.0.0.1` 随机端口；关闭窗口时同步结束服务进程。
-- **无缝复用配置**：直接使用现有 `DSH_HOME`（默认 `%USERPROFILE%\.dsh`），命令行版与桌面版共享设置和会话。
-- **上游版本感知**：每天最多检查一次 DeepSeek Harness major/minor 更新，并提供源码重建更新流程。
-- **可复现构建**：运行时部署、依赖补齐、junction 展平、冒烟测试和 Electron 打包均由脚本完成。
-- **隐私优先开源**：源码仓库明确排除账号凭据、历史会话、日志、缓存、签名材料和本机构建产物。
-- **Harness Diff**：用确定性指标和规则比较两次执行的工具使用、失败恢复、搜索路径与文件 churn。
-- **订阅模型接入**：`config-example/` 提供 ChatGPT 订阅（OAuth）登录脚本与 OpenAI 兼容提供商（如火山方舟豆包）配置示例，构建流程自动注入运行时补丁。
-- **模型资源中心**：顶部常驻显示当前模型与可用额度；账户探测、会话扫描全部后台执行，账户服务不可用时自动降级为本机 Token 用量账本。
+## 本地开发
 
-## 工作方式
-
-```text
-启动桌面应用
-    ↓
-在本机随机端口启动 dsh web
-    ↓
-Electron 窗口加载 Web GUI 并注入桌面主题
-    ↓
-关闭窗口时回收 Harness 子进程
-```
-
-## 隐私
-
-仓库只包含桌面壳源码、构建脚本、必要图标和**不含任何真实凭据的配置示例**，不包含：
-
-- `.dsh`、API 凭据、登录状态或历史会话
-- 订阅 OAuth token（`oauth-credentials.json`）或适配器回滚备份（`*.oauth-bak`）
-- 日志、缓存、数据库和本机配置
-- `node_modules`、打包产物、内置运行时或 Node 可执行文件
-- 代码签名证书、私钥或环境变量文件
-
-应用会在运行时读取本机的 `DSH_HOME`；这些数据不会被复制到项目目录。
-
-Harness Lab 默认只把经过净化的指标、工具名/类别、通用摘要和文件 basename 发送给本地 renderer。它不会把 Prompt 原文或凭据用于比较，也不会发起远程分析。
-
-## 配置示例与订阅模型接入
-
-[`config-example/`](config-example/README.md) 是一套可直接上手的 Harness 用户配置示例：默认模型路由、权限预设、通用多提供商适配器（`llm-pi-ai`）的 provider 配置，以及 ChatGPT 订阅（Plus / Pro / Pro Max）经 OAuth 接入 `openai-codex` 路由的一键登录/验证脚本。
-
-> 豆包专业版订阅是 App/网页消费订阅，不发放 API Key；API 调用走火山方舟单独计费。
-> 仓库不提供任何 Cookie / 网页会话桥接方案，OpenAI 兼容接入示例见下。
-
-### ChatGPT 订阅（openai-codex 路由）
-
-`openai-codex` 是 OAuth-only 路由，原版适配器不携带凭据存储。构建流程已自动打补丁（`scripts/patch-pi-ai-oauth.mjs`，幂等，原文件备份为 `index.js.oauth-bak`）；对已安装应用可手动执行：
-
-```powershell
-node scripts\patch-pi-ai-oauth.mjs "%LOCALAPPDATA%\Programs\DeepSeek\resources\runtime"
-```
-
-然后把 `config-example\settings.yaml.example` 中 `llm-pi-ai.providers.openai-codex` 段合并进 `$DSH_HOME\settings.yaml`，登录：
-
-```powershell
-node config-example\oauth-login-openai-codex.mjs
-node config-example\test-openai-codex.mjs gpt-5.6-luna
-```
-
-登录凭据写入 `$DSH_HOME\oauth-credentials.json`（已 gitignore），token 到期自动刷新；随后即可在 Web GUI 模型选择器中选用该路由下的模型。
-
-### 添加 OpenAI 兼容提供商（豆包 / 火山方舟）
-
-在 `$DSH_HOME\settings.yaml` 的 `llm-pi-ai.providers` 下新增一段，`apiKeyEnv` 引用按请求解析的凭据（写入 `$DSH_HOME\.credentials.yaml` 或 `.env`）：
-
-```yaml
-llm-pi-ai:
-  providers:
-    volcark:
-      displayName: 火山方舟豆包
-      apiKeyEnv: ARK_API_KEY
-      api: openai-completions
-      baseURL: https://ark.cn-beijing.volces.com/api/v3
-      models:
-        - id: ep-xxxxxxxx      # 方舟控制台的推理接入点 ID，或模型名（如 doubao-seed-2-1-pro）
-          name: 豆包 2.1 Pro
-          contextWindow: 128000
-          maxTokens: 8192
-```
-
-`llm-pi-ai` 适配器默认休眠挂载：配置段出现即实时注册路由（无需重启），段清空即移除。
-
-## 开发运行
-
-要求 Node.js 22.15+（默认 `.jsonl.zstd` session 使用 Node 内置 Zstandard 解码）：
+要求 Node.js 22.15+：
 
 ```powershell
 cd app
 npm ci
 npm start
 ```
-
-开发模式需要先准备 `staging/payload/runtime` 和 `staging/payload/node.exe`。运行时来自上游 DeepSeek Harness，不提交到本仓库。
-
-### Harness Lab Demo Mode
-
-Demo Mode 完全使用仓库内 synthetic sessions，不需要真实 `DSH_HOME`，也不会启动 `dsh web`：
-
-```powershell
-cd app
-npm start -- --demo-harness-lab
-```
-
-也可以设置 `HARNESS_LAB_DEMO=1`。Demo 固定展示 Run A（31 steps / 46 tool calls / 6 retries / 3 failures）与 Run B（18 steps / 27 tool calls / 1 retry / 0 failures），并突出重复仓库搜索、失败测试恢复与执行量差异。
 
 运行测试：
 
@@ -169,11 +88,18 @@ cd app
 npm test
 ```
 
+Harness Lab 合成数据演示：
+
+```powershell
+cd app
+npm start -- --demo-harness-lab
+```
+
+开发模式需要预先准备 `staging/payload/runtime` 和 `staging/payload/node.exe`，它们来自上游 DeepSeek Harness，不提交到本仓库。
+
 ## 构建
 
-1. 将上游仓库克隆到本机，例如 `..\deepseek-harness`。
-2. 安装 `pnpm`，并在上游仓库安装依赖。
-3. 运行：
+准备上游 DeepSeek Harness 源码及其依赖后运行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\sync-update.ps1 `
@@ -181,12 +107,18 @@ powershell -ExecutionPolicy Bypass -File scripts\sync-update.ps1 `
   -BuildOnly
 ```
 
-生成文件位于 `dist/`。更新脚本不会依赖任何固定用户名或绝对路径。
+安装版与便携版生成在 `dist/`。构建流程会完成运行时部署、依赖补齐、补丁应用、冒烟测试和 Electron 打包，不依赖固定用户名或绝对路径。
 
-## 自动更新说明
+## 隐私与安全
 
-桌面应用根据打包时生成的 `version.json` 检查上游 DeepSeek Harness 版本。收到 major/minor 更新提示后，更新脚本会拉取用户本机的上游源码、重建运行时并重新打包。该流程需要 Git、Node.js、pnpm 和完整源码工作区，并非下载未知二进制覆盖安装。
+仓库明确排除以下内容：
 
-## 上游与许可
+- `.dsh`、API 凭据、OAuth Token、登录状态与历史会话；
+- 日志、缓存、数据库、本地配置与环境变量文件；
+- `node_modules`、运行时、构建产物、签名证书与私钥。
 
-桌面封装代码以 [MIT License](LICENSE) 发布。DeepSeek Harness 及其依赖仍分别适用各自的许可证和商标条款；分发包含上游运行时的安装包前，请自行核对并遵守对应许可。
+应用只读取你本机的 `DSH_HOME`，不会把这些数据复制到仓库或发送到远程分析服务。
+
+## 许可
+
+桌面封装代码采用 [MIT License](LICENSE)。DeepSeek Harness 及其依赖仍分别适用各自的许可证和商标条款；分发包含上游运行时的安装包前，请自行核对对应许可。
