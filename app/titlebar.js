@@ -1,6 +1,5 @@
 /**
- * Injected into the page by the desktop shell: builds the Claude Code style
- * window chrome (✳ DeepSeek + traffic controls) above the web UI.
+ * Builds the lightweight DeepSea Signal desktop control bar.
  */
 (() => {
   if (document.getElementById('cc-titlebar')) return
@@ -59,10 +58,4 @@
     window.ccDesktop.isMaximized().then(renderMax)
   }
   tryRun()
-  // The shell renders late (React); retry until the body accepts the bar.
-  const timer = setInterval(() => {
-    if (document.getElementById('cc-titlebar')) { clearInterval(timer); return }
-    tryRun()
-  }, 400)
-  setTimeout(() => clearInterval(timer), 15000)
 })()

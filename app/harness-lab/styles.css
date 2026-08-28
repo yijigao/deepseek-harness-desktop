@@ -1,27 +1,29 @@
+@import url("../themes/deepsea-palette.css");
+
 :root {
   color-scheme: dark;
-  --bg: #111214;
-  --bg-raised: #17191c;
-  --bg-raised-2: #1c1f23;
-  --bg-soft: #20242a;
-  --line: rgba(225, 231, 239, 0.1);
-  --line-strong: rgba(225, 231, 239, 0.18);
-  --text: #f0f2f4;
-  --text-muted: #9aa1ab;
-  --text-faint: #68717d;
-  --accent: #d97757;
-  --accent-bright: #ed9775;
-  --accent-soft: rgba(217, 119, 87, 0.14);
-  --accent-line: rgba(217, 119, 87, 0.35);
-  --blue: #88a9d2;
-  --blue-soft: rgba(136, 169, 210, 0.14);
-  --green: #76c394;
-  --green-soft: rgba(118, 195, 148, 0.13);
-  --amber: #e3b46d;
-  --amber-soft: rgba(227, 180, 109, 0.14);
-  --red: #e58c8c;
-  --red-soft: rgba(229, 140, 140, 0.14);
-  --shadow: 0 22px 60px rgba(0, 0, 0, 0.2);
+  --bg: var(--dss-abyss-0);
+  --bg-raised: var(--dss-abyss-1);
+  --bg-raised-2: var(--dss-abyss-2);
+  --bg-soft: var(--dss-abyss-3);
+  --line: var(--dss-line);
+  --line-strong: var(--dss-line-strong);
+  --text: var(--dss-text);
+  --text-muted: var(--dss-text-muted);
+  --text-faint: var(--dss-text-faint);
+  --accent: var(--dss-brand);
+  --accent-bright: var(--dss-brand-bright);
+  --accent-soft: var(--dss-brand-soft);
+  --accent-line: rgba(77, 141, 255, 0.36);
+  --blue: var(--dss-signal);
+  --blue-soft: var(--dss-signal-soft);
+  --green: var(--dss-success);
+  --green-soft: rgba(89, 212, 153, 0.13);
+  --amber: var(--dss-warning);
+  --amber-soft: rgba(242, 189, 98, 0.14);
+  --red: var(--dss-danger);
+  --red-soft: rgba(255, 125, 139, 0.14);
+  --shadow: var(--dss-shadow);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
 }
@@ -42,7 +44,7 @@ body {
   margin: 0;
   color: var(--text);
   background:
-    radial-gradient(circle at 83% -10%, rgba(217, 119, 87, 0.11), transparent 34rem),
+    radial-gradient(circle at 83% -10%, rgba(77, 141, 255, 0.11), transparent 34rem),
     radial-gradient(circle at -10% 58%, rgba(93, 128, 170, 0.07), transparent 30rem),
     var(--bg);
   font-size: 14px;
@@ -89,7 +91,7 @@ button:focus-visible {
   border-radius: 12px;
   color: var(--accent-bright);
   background: var(--accent-soft);
-  box-shadow: 0 0 0 5px rgba(217, 119, 87, 0.04);
+  box-shadow: 0 0 0 5px rgba(77, 141, 255, 0.04);
   font-size: 19px;
 }
 
@@ -278,7 +280,7 @@ h2 {
   border-color: var(--accent);
   color: #1e1715;
   background: var(--accent);
-  box-shadow: 0 5px 16px rgba(217, 119, 87, 0.15);
+  box-shadow: 0 5px 16px rgba(77, 141, 255, 0.15);
 }
 
 .button-primary:hover:not(:disabled) {
@@ -356,7 +358,7 @@ h2 {
   padding: 13px 15px;
   border: 1px solid var(--line);
   border-radius: 11px;
-  background: linear-gradient(100deg, rgba(217, 119, 87, 0.06), rgba(255, 255, 255, 0.025));
+  background: linear-gradient(100deg, rgba(77, 141, 255, 0.06), rgba(255, 255, 255, 0.025));
 }
 
 .selection-copy {
@@ -403,7 +405,7 @@ h2 {
 }
 
 .selection-pill-b {
-  border-color: rgba(217, 119, 87, 0.34);
+  border-color: rgba(77, 141, 255, 0.34);
 }
 
 .selection-letter {
@@ -572,7 +574,7 @@ h2 {
 }
 
 .select-run.is-selected-b {
-  border-color: rgba(217, 119, 87, 0.72);
+  border-color: rgba(77, 141, 255, 0.72);
   color: #271916;
   background: var(--accent-bright);
 }
@@ -713,7 +715,7 @@ h2 {
 }
 
 .heading-pair .pair-pill-b {
-  border-color: rgba(217, 119, 87, 0.36);
+  border-color: rgba(77, 141, 255, 0.36);
 }
 
 .pair-letter {
@@ -744,7 +746,7 @@ h2 {
   padding: 20px;
   border: 1px solid var(--accent-line);
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(217, 119, 87, 0.13), rgba(23, 25, 28, 0.9) 55%);
+  background: linear-gradient(135deg, rgba(77, 141, 255, 0.13), rgba(8, 17, 30, 0.9) 55%);
   box-shadow: var(--shadow);
 }
 
@@ -759,7 +761,7 @@ h2 {
 .diagnosis-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .action-feedback { min-height: 18px; margin: 9px 0 0; color: var(--accent-bright); font-size: 11px; }
 .baseline-badge { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: 5px; color: var(--accent-bright); background: var(--accent-soft); font-size: 9px; }
-.run-health-panel { margin: 0 0 18px; padding: 20px; border: 1px solid var(--accent-line); border-radius: 12px; background: linear-gradient(145deg, rgba(217,119,87,.11), rgba(23,25,28,.94)); box-shadow: var(--shadow); }
+.run-health-panel { margin: 0 0 18px; padding: 20px; border: 1px solid var(--accent-line); border-radius: 12px; background: linear-gradient(145deg, rgba(77,141,255,.11), rgba(8,17,30,.94)); box-shadow: var(--shadow); }
 .health-gates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 18px; }
 .health-gates div { padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.025); }
 .health-gates span { display: block; margin-bottom: 5px; color: var(--text-faint); font-size: 10px; }

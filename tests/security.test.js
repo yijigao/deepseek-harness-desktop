@@ -128,9 +128,9 @@ test('smoke-validated compatibility claim is stated in audit and README', () => 
   }
 })
 
-test('packaging includes trajectory, local UI, preload, and synthetic demo assets', () => {
+test('packaging includes trajectory, DeepSea theme, local UI, preload, and synthetic demo assets', () => {
   const manifest = JSON.parse(read('app/package.json'))
-  for (const entry of ['harness-lab/**/*', 'lib/**/*', 'demo/**/*', 'harness-lab-button.css']) {
+  for (const entry of ['harness-lab/**/*', 'lib/**/*', 'demo/**/*', 'themes/**/*']) {
     assert.ok(manifest.build.files.includes(entry), entry)
   }
   assert.ok(manifest.build.asarUnpack.includes('demo/**/*'))
@@ -139,4 +139,15 @@ test('packaging includes trajectory, local UI, preload, and synthetic demo asset
   const resourceTargets = manifest.build.extraResources.map((entry) => entry.to)
   assert.ok(resourceTargets.includes('tools/oauth-login-openai-codex.mjs'))
   assert.ok(resourceTargets.includes('tools/patch-pi-ai-oauth.mjs'))
+})
+
+test('DeepSea theme is token-driven and does not force upstream theme state', () => {
+  const main = read('app/main.js')
+  const palette = read('app/themes/deepsea-palette.css')
+  const adapter = read('app/themes/deepsea-adapter.css')
+  assert.match(palette, /--dss-brand:\s*#4d8dff/)
+  assert.match(adapter, /body\[data-ds-dark-theme\]/)
+  assert.match(adapter, /--dsw-alias-brand-primary:\s*var\(--dss-brand\)/)
+  assert.doesNotMatch(main, /MutationObserver|data-ds-dark-theme',\s*''/)
+  assert.doesNotMatch(read('app/titlebar.js'), /setInterval/)
 })

@@ -1,0 +1,29 @@
+/* DeepSea Signal: the shared, static DSH colour system. */
+:root {
+  --dss-abyss-0: #050a12;
+  --dss-abyss-1: #08111e;
+  --dss-abyss-2: #0c1828;
+  --dss-abyss-3: #122238;
+  --dss-abyss-4: #1a2d46;
+  --dss-line: rgba(139, 184, 232, 0.14);
+  --dss-line-strong: rgba(139, 184, 232, 0.25);
+  --dss-text: #e8f2ff;
+  --dss-text-muted: #9bb0c8;
+  --dss-text-faint: #687f99;
+  --dss-brand: #4d8dff;
+  --dss-brand-bright: #74a7ff;
+  --dss-brand-soft: rgba(77, 141, 255, 0.15);
+  --dss-signal: #35d5d0;
+  --dss-signal-soft: rgba(53, 213, 208, 0.13);
+  --dss-intelligence: #a78bfa;
+  --dss-intelligence-soft: rgba(167, 139, 250, 0.14);
+  --dss-success: #59d499;
+  --dss-warning: #f2bd62;
+  --dss-danger: #ff7d8b;
+  --dss-shadow: 0 18px 48px rgba(0, 5, 14, 0.28);
+  --dss-motion-fast: 140ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dss-motion-fast: 0ms; }
+}

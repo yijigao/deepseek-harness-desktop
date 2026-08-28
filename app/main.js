@@ -20,7 +20,7 @@ const { ModelResourceService } = require('./lib/model-resources/service')
 
 const PRODUCT = 'DeepSeek'
 const APP_ID = 'com.deepseek.desktop'
-const WINDOW_BG = '#1f1e1d'
+const WINDOW_BG = '#050a12'
 const LOG_PATH = path.join(os.tmpdir(), 'deepseek-desktop.log')
 const MAX_PINNED_SESSIONS = 50
 
@@ -225,24 +225,13 @@ function startServer(port) {
 
 function injectDesktopFrame(win) {
   const inject = () => {
-    const themeCss = readInjected('claude-theme.css')
-    const harnessLabButtonCss = readInjected('harness-lab-button.css')
+    const themeCss = [
+      readInjected(path.join('themes', 'deepsea-palette.css')),
+      readInjected(path.join('themes', 'deepsea-adapter.css')),
+    ].filter(Boolean).join('\n')
     const titlebarJs = readInjected('titlebar.js')
       .replace('__DEEPSEEK_LOGO_DATA_URL__', nativeImage.createFromPath(iconPath()).resize({ width: 18, height: 18 }).toDataURL())
     if (themeCss) win.webContents.insertCSS(themeCss, { cssOrigin: 'author' }).catch(() => {})
-    if (harnessLabButtonCss) win.webContents.insertCSS(harnessLabButtonCss, { cssOrigin: 'author' }).catch(() => {})
-    const forceDark = `(() => {
-      const ensure = () => {
-        if (document.body && !document.body.hasAttribute('data-ds-dark-theme')) {
-          document.body.setAttribute('data-ds-dark-theme', '')
-        }
-      }
-      ensure()
-      try {
-        new MutationObserver(ensure).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['data-ds-dark-theme'] })
-      } catch {}
-    })()`
-    win.webContents.executeJavaScript(forceDark).catch(() => {})
     if (titlebarJs) win.webContents.executeJavaScript(titlebarJs).catch(() => {})
   }
   win.webContents.on('dom-ready', inject)
@@ -426,7 +415,7 @@ async function createModelSettingsWindow() {
     minWidth: 720,
     minHeight: 560,
     show: false,
-    backgroundColor: '#171717',
+    backgroundColor: '#050a12',
     icon: iconPath(),
     title: 'Model Resources',
     autoHideMenuBar: true,
@@ -983,7 +972,7 @@ if (!gotLock) {
     }
 
     // --verify: programmatic UI check — sample computed styles and print JSON,
-    // exit 0 when the Claude Code theme + title bar are applied.
+    // Exit 0 when the DeepSea Signal theme + title bar are applied.
     if (process.argv.includes('--verify')) {
       setTimeout(async () => {
         try {
@@ -1001,9 +990,12 @@ if (!gotLock) {
               mark: bar && bar.querySelector('.cc-mark') ? bar.querySelector('.cc-mark').textContent : null,
             }
           })()`)
-          const ok = report.titlebarPresent && report.darkAttr
-            && report.titlebarBg === 'rgb(31, 30, 29)'
-            && (String(report.accent) === '#d97757' || String(report.accent).includes('217, 119, 87'))
+          const themeOk = !report.darkAttr
+            || String(report.accent) === '#4d8dff'
+            || String(report.accent).includes('77, 141, 255')
+          const ok = report.titlebarPresent
+            && report.titlebarBg === 'rgb(5, 10, 18)'
+            && themeOk
           console.log(`VERIFY ${JSON.stringify(report)}`)
           process.exitCode = ok ? 0 : 1
           log(`verify: ${ok ? 'OK' : 'FAILED'} ${JSON.stringify(report)}`)
