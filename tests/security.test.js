@@ -31,7 +31,7 @@ test('Harness Lab preload exposes only the approved query and action methods', (
   assert.doesNotMatch(preload, /require\(['"]node:(?:fs|path|child_process)/)
   assert.doesNotMatch(preload, /(?:exec|spawn|shell)\s*:/)
   const exposedMethods = [...preload.matchAll(/^\s{2}([A-Za-z]+):/gm)].map((match) => match[1]).sort()
-  assert.deepEqual(exposedMethods, ['compareRuns', 'copyOptimizationBrief', 'exportReport', 'getRun', 'listRuns', 'setBaseline'])
+  assert.deepEqual(exposedMethods, ['compareRuns', 'copyOptimizationBrief', 'copyRunFix', 'exportReport', 'getRun', 'listRuns', 'openOriginal', 'setBaseline'])
 })
 
 test('Models & Health remains a sandboxed local control surface', () => {
@@ -65,7 +65,8 @@ test('Harness Lab renderer is static, local, and has no Node or arbitrary networ
   assert.doesNotMatch(renderer, /\b(?:require|process|Buffer)\b/)
   assert.doesNotMatch(renderer, /\b(?:fetch|XMLHttpRequest|WebSocket|eval)\s*\(/)
   assert.doesNotMatch(renderer, /\.innerHTML\s*=/)
-  assert.doesNotMatch(renderer, /\.workspace\b/)
+  assert.match(renderer, /compactString\(run\.workspace \|\| run\.model/)
+  assert.match(renderer, /const PATH_RE =/)
   assert.match(html, /复制优化任务/)
 })
 

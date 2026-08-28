@@ -490,7 +490,7 @@ h2 {
 }
 
 .runs-table .select-column {
-  width: 110px;
+  width: 185px;
   padding-left: 15px;
 }
 
@@ -759,6 +759,12 @@ h2 {
 .diagnosis-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .action-feedback { min-height: 18px; margin: 9px 0 0; color: var(--accent-bright); font-size: 11px; }
 .baseline-badge { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: 5px; color: var(--accent-bright); background: var(--accent-soft); font-size: 9px; }
+.run-health-panel { margin: 0 0 18px; padding: 20px; border: 1px solid var(--accent-line); border-radius: 12px; background: linear-gradient(145deg, rgba(217,119,87,.11), rgba(23,25,28,.94)); box-shadow: var(--shadow); }
+.health-gates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 18px; }
+.health-gates div { padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.025); }
+.health-gates span { display: block; margin-bottom: 5px; color: var(--text-faint); font-size: 10px; }
+.health-gates strong { color: var(--text); font-size: 13px; }
+.inspect-run { width: auto; min-width: 42px; padding: 0 7px; font-size: 10px; }
 
 .summary-card {
   min-height: 105px;

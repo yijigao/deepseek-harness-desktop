@@ -357,6 +357,10 @@ function normalizeDshRecords(parsed, options = {}) {
     },
     enumerable: false,
   })
+  Object.defineProperties(run, {
+    _sourceSessionId: { value: typeof header.id === 'string' ? header.id : null, enumerable: false },
+    _parentSessionId: { value: typeof header.parentSession === 'string' ? header.parentSession : null, enumerable: false },
+  })
   return run
 }
 

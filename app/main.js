@@ -401,6 +401,8 @@ async function harnessLabReport(win) {
     summaryCards: document.querySelectorAll('#summary-cards .summary-card').length,
     divergences: document.querySelectorAll('#divergence-list .divergence-card').length,
     diagnosis: document.getElementById('diagnosis-headline')?.textContent,
+    healthVisible: !document.getElementById('run-health')?.hidden,
+    businessGate: document.getElementById('business-gate')?.textContent,
     compareVisible: !document.getElementById('compare-content')?.hidden,
     feedback: document.getElementById('runs-feedback')?.textContent,
   }))()`)
@@ -438,19 +440,21 @@ function setupHarnessLabAutomation(win) {
           ?.querySelector('[data-select-side="' + side + '"]')
           ?.click()
         if (document.querySelectorAll('#runs-body tr').length >= 2) {
+          document.querySelectorAll('#runs-body tr')[0]?.querySelector('[data-action="inspect"]')?.click()
           selectRun(0, 'a')
           selectRun(1, 'b')
           document.getElementById('compare-selected')?.click()
         }
       })()`)
       const report = await waitForHarnessLab(win, (candidate) => (
-        candidate.compareVisible && candidate.summaryCards === 6 && candidate.divergences >= 4
+        candidate.compareVisible && candidate.summaryCards === 6 && candidate.divergences >= 4 && candidate.healthVisible
       ))
       const ok = report.title === '执行实验室'
         && report.runRows === 2
         && report.summaryCards === 6
         && report.divergences >= 4
         && report.diagnosis === '运行 B 的执行轨迹整体更精简、稳定。'
+        && report.businessGate === '尚未验收'
         && report.compareVisible
       if (verify) {
         console.log(`HARNESS-LAB-VERIFY ${JSON.stringify(report)}`)
@@ -481,6 +485,9 @@ function harnessLabHandler(operation) {
       if (error?.code === 'HARNESS_LAB_ZSTD_UNAVAILABLE') {
         throw new Error('Harness Lab cannot read compressed sessions in this runtime')
       }
+      if (error?.code === 'HARNESS_LAB_NOT_COMPARABLE') {
+        throw new Error('只有同一任务谱系下的不同尝试才能进行受控对比')
+      }
       throw new Error('Harness Lab request failed')
     }
   }
@@ -507,6 +514,17 @@ function optimizationBrief(comparison) {
     diagnosis.headline || '',
     ...actions.map((item, index) => `${index + 1}. ${item}`),
     '要求：保持最终业务目标不变，减少无效工具调用；关键修改后及时运行最小验证；完成后报告采取的优化和验证结果。',
+  ].filter(Boolean).join('\n')
+}
+
+function runFixBrief(run) {
+  const diagnosis = run.diagnosis || {}
+  return [
+    '请继续修复并完成上一轮任务。',
+    diagnosis.headline || '',
+    ...(diagnosis.issues || []).map((item) => `发现：${item}`),
+    ...(diagnosis.actions || []).map((item, index) => `${index + 1}. ${item}`),
+    '要求：保持原业务目标不变；完成后验证最终产物，并明确报告业务验收结果。',
   ].filter(Boolean).join('\n')
 }
 
@@ -716,6 +734,28 @@ if (!gotLock) {
     await service.requireRun(runId)
     fs.writeFileSync(baselinePath(), JSON.stringify({ runId, savedAt: new Date().toISOString() }), { mode: 0o600 })
     return { saved: true }
+  }))
+  ipcMain.handle('harness-lab:copy-run-fix', harnessLabHandler(async (service, runId) => {
+    clipboard.writeText(runFixBrief(await service.getRun(runId)))
+    return { copied: true }
+  }))
+  ipcMain.handle('harness-lab:open-original', harnessLabHandler(async (service, runId) => {
+    const sessionId = await service.sourceSessionId(runId)
+    if (!sessionId || !mainWindow || mainWindow.isDestroyed()) return { opened: false }
+    const located = await mainWindow.webContents.executeJavaScript(`(() => {
+      const id = ${JSON.stringify(sessionId)}
+      const nodes = [...document.querySelectorAll('[href], [data-session-id], [data-session]')]
+      const target = nodes.find((node) => [node.getAttribute('href'), node.getAttribute('data-session-id'), node.getAttribute('data-session')]
+        .filter(Boolean).some((value) => value === id || value.includes(encodeURIComponent(id)) || value.includes(id)))
+      if (!target) return false
+      target.click()
+      return true
+    })()`)
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    if (located) harnessLabWindow?.hide()
+    return { opened: Boolean(located) }
   }))
 
   // ---- lifecycle -------------------------------------------------------------

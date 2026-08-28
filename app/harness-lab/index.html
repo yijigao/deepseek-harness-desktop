@@ -28,11 +28,11 @@
 
       <nav class="tab-bar" aria-label="Harness Lab sections" role="tablist">
         <button id="tab-runs" class="tab-button is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-runs">
-          <span>运行记录</span>
+          <span>任务体检</span>
           <span id="runs-count" class="tab-count" aria-label="run count">—</span>
         </button>
         <button id="tab-compare" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="panel-compare" tabindex="-1">
-          <span>对比分析</span>
+          <span>受控实验</span>
           <span id="compare-tab-state" class="tab-hint">请选择两条</span>
         </button>
       </nav>
@@ -43,7 +43,7 @@
             <div>
               <p class="section-kicker">运行记录</p>
               <h2>最近运行</h2>
-              <p class="section-description">选择两条脱敏会话，对比它们的执行路径和成本。</p>
+              <p class="section-description">先查看单次任务是否完成、是否验证、哪里需要修复；轨迹只是诊断证据。</p>
             </div>
             <button id="refresh-runs" class="button button-secondary" type="button">
               <span class="button-icon" aria-hidden="true">↻</span>
@@ -56,7 +56,7 @@
           <div class="selection-strip" aria-label="Comparison selection">
             <div class="selection-copy">
               <span class="selection-label">选择对比</span>
-              <span class="selection-explainer">分别指定运行 A 和运行 B。</span>
+              <span class="selection-explainer">仅允许比较同一任务谱系下的不同尝试。</span>
             </div>
             <div class="selection-pills">
               <div id="selection-a" class="selection-pill selection-pill-a">
@@ -82,6 +82,29 @@
             <button id="refresh-empty" class="button button-secondary" type="button">刷新会话库</button>
           </div>
 
+          <section id="run-health" class="run-health-panel" hidden aria-labelledby="run-health-title">
+            <div class="diagnosis-heading">
+              <div><p class="section-kicker">单次任务体检</p><h3 id="run-health-title">运行健康</h3></div>
+              <span id="run-health-gate" class="local-badge">待检查</span>
+            </div>
+            <p id="run-health-headline" class="diagnosis-headline"></p>
+            <div class="health-gates">
+              <div><span>执行完成</span><strong id="execution-gate">待检查</strong></div>
+              <div><span>业务验收</span><strong id="business-gate">尚未验收</strong></div>
+              <div><span>检测到测试</span><strong id="test-gate">未知</strong></div>
+            </div>
+            <div class="diagnosis-columns">
+              <div><h4>发现的问题</h4><ul id="run-health-issues"></ul></div>
+              <div><h4>下一步动作</h4><ul id="run-health-actions"></ul></div>
+            </div>
+            <p id="run-health-caveat" class="diagnosis-caveat"></p>
+            <div class="diagnosis-actions">
+              <button id="open-original" class="button button-primary" type="button">打开原始对话</button>
+              <button id="copy-run-fix" class="button button-secondary" type="button">复制修复任务</button>
+            </div>
+            <p id="run-health-feedback" class="action-feedback" role="status" aria-live="polite"></p>
+          </section>
+
           <div id="runs-table-wrap" class="table-wrap">
             <table class="runs-table">
               <caption class="sr-only">脱敏运行摘要</caption>
@@ -102,7 +125,7 @@
             <div>
               <p class="section-kicker">执行路径复盘</p>
               <h2>运行 A <span class="heading-vs">对比</span> 运行 B</h2>
-              <p class="section-description">查看两次执行在哪些地方更高效、失败或发生偏离。</p>
+              <p class="section-description">仅比较同一目标、同一验收标准下的不同尝试；先看结果门槛，再看效率。</p>
             </div>
             <div class="compare-heading-actions">
               <div id="compare-run-pair" class="heading-pair" aria-label="Selected runs"></div>

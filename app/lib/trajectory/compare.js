@@ -173,6 +173,45 @@ function publicRunSummary(run, label) {
   }
 }
 
+function diagnoseRun(run) {
+  const analysis = analyzeRun(run)
+  const metrics = run.metrics || {}
+  const issues = []
+  const actions = []
+  if (metrics.failed_tool_calls > 0) {
+    issues.push(`检测到 ${metrics.failed_tool_calls} 次失败工具调用。`)
+    actions.push('检查失败工具的参数和前置条件，修正后从失败点继续。')
+  }
+  if (metrics.retry_count > 0) {
+    issues.push(`模型请求发生 ${metrics.retry_count} 次重试。`)
+    actions.push('检查模型可用性、上下文规模和网络状态，避免重复消耗。')
+  }
+  if (metrics.repeated_tool_calls > 0) {
+    issues.push(`发现 ${metrics.repeated_tool_calls} 次重复工具调用。`)
+    actions.push('在下一次尝试中明确搜索边界，并在重复调用前检查已有结果。')
+  }
+  if (analysis.unrecoveredShellResults.length > 0) {
+    issues.push('存在未恢复的失败命令。')
+    actions.push('优先处理未恢复命令，不要在失败状态下继续扩大修改范围。')
+  }
+  if (!analysis.firstTestCall && metrics.files_written > 0) {
+    issues.push('修改了文件，但未检测到测试执行。')
+    actions.push('针对修改内容运行最小测试或验证命令，再确认任务完成。')
+  }
+  if (issues.length === 0) issues.push('未发现明显的规则级执行异常。')
+  if (actions.length === 0) actions.push('复核最终产物是否满足业务目标，并记录验收结果。')
+  const executionGate = run.status === 'success' ? 'passed' : run.status === 'failed' ? 'failed' : 'unknown'
+  return {
+    executionGate,
+    businessGate: 'not_evaluated',
+    headline: executionGate === 'passed' ? '执行流程已正常结束。' : executionGate === 'failed' ? '执行流程未成功完成。' : '无法确认执行是否正常完成。',
+    issues: [...new Set(issues)].slice(0, 6),
+    actions: [...new Set(actions)].slice(0, 5),
+    testDetected: Boolean(analysis.firstTestCall),
+    caveat: '执行完成不代表业务验收通过；仍需检查最终产物。',
+  }
+}
+
 function buildDiagnosis(runA, runB, metricDiffs, divergences) {
   const findings = []
   const recommendations = []
@@ -279,4 +318,5 @@ function compareRuns(runA, runB) {
 module.exports = {
   METRICS,
   compareRuns,
+  diagnoseRun,
 }

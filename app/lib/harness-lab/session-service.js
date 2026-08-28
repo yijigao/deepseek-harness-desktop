@@ -6,7 +6,7 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { parseRun } = require('../trajectory/parser')
-const { compareRuns } = require('../trajectory/compare')
+const { compareRuns, diagnoseRun } = require('../trajectory/compare')
 
 const SESSION_FILES = new Set(['session.jsonl', 'session.jsonl.zstd'])
 const PUBLIC_METRICS = Object.freeze([
@@ -114,6 +114,10 @@ function publicRun(run, includeSteps = true) {
     status: run.status,
     steps: includeSteps ? run.steps.map(publicStep) : undefined,
     metrics: pickMetrics(run.metrics),
+    lineageId: run._sourceSessionId
+      ? opaqueId(run._parentSessionId || run._sourceSessionId)
+      : run.runId,
+    hasParent: Boolean(run._parentSessionId),
   }
 }
 
@@ -307,7 +311,7 @@ class HarnessLabSessionService {
       const runId = opaqueId(entry.filePath)
       nextRegistry.set(runId, entry)
       const cached = stored[runId]
-      if (cached && cached.mtimeMs === entry.mtimeMs && cached.size === entry.size && cached.summary) {
+      if (cached && cached.mtimeMs === entry.mtimeMs && cached.size === entry.size && cached.summary?.lineageId) {
         next[runId] = cached
         summaries.push(cached.summary)
         continue
@@ -340,12 +344,25 @@ class HarnessLabSessionService {
   }
 
   async getRun(runId) {
-    return publicRun(await this.requireRun(runId), true)
+    const run = await this.requireRun(runId)
+    return { ...publicRun(run, true), diagnosis: diagnoseRun(run) }
+  }
+
+  async sourceSessionId(runId) {
+    const run = await this.requireRun(runId)
+    return run._sourceSessionId || null
   }
 
   async compare(runAId, runBId) {
     if (runAId === runBId) throw new Error('Select two different runs')
     const [runA, runB] = await Promise.all([this.requireRun(runAId), this.requireRun(runBId)])
+    const lineageA = runA._parentSessionId || runA._sourceSessionId
+    const lineageB = runB._parentSessionId || runB._sourceSessionId
+    if (!this.demoMode && (!lineageA || !lineageB || lineageA !== lineageB)) {
+      const error = new Error('Only attempts from the same task lineage can be compared')
+      error.code = 'HARNESS_LAB_NOT_COMPARABLE'
+      throw error
+    }
     return compareRuns(runA, runB)
   }
 }

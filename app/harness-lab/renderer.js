@@ -64,6 +64,18 @@
     exportReport: document.getElementById('export-report'),
     setBaseline: document.getElementById('set-baseline'),
     actionFeedback: document.getElementById('action-feedback'),
+    runHealth: document.getElementById('run-health'),
+    runHealthGate: document.getElementById('run-health-gate'),
+    runHealthHeadline: document.getElementById('run-health-headline'),
+    executionGate: document.getElementById('execution-gate'),
+    businessGate: document.getElementById('business-gate'),
+    testGate: document.getElementById('test-gate'),
+    runHealthIssues: document.getElementById('run-health-issues'),
+    runHealthActions: document.getElementById('run-health-actions'),
+    runHealthCaveat: document.getElementById('run-health-caveat'),
+    openOriginal: document.getElementById('open-original'),
+    copyRunFix: document.getElementById('copy-run-fix'),
+    runHealthFeedback: document.getElementById('run-health-feedback'),
   }
 
   const state = {
@@ -77,6 +89,8 @@
     compareError: '',
     compareResult: null,
     compareRequest: 0,
+    inspectedRunId: null,
+    inspectedRun: null,
   }
 
   function getApi() {
@@ -166,6 +180,8 @@
       model: rawString(value.model || value.modelName),
       status: rawString(value.status || 'unknown').toLowerCase(),
       isBaseline: value.isBaseline === true,
+      lineageId: rawString(value.lineageId),
+      hasParent: value.hasParent === true,
       metrics,
     }
   }
@@ -284,6 +300,13 @@
     return Boolean(state.selectedA && state.selectedB && state.selectedA !== state.selectedB)
   }
 
+  function hasComparableSelection() {
+    if (!hasDistinctSelection()) return false
+    const runA = selectedRun('a')
+    const runB = selectedRun('b')
+    return Boolean(runA && runB && runA.lineageId && runA.lineageId === runB.lineageId)
+  }
+
   function selectionLabel(side) {
     const run = selectedRun(side)
     return run ? compactString(run.runId, '已选择', 34) : '未选择'
@@ -310,10 +333,10 @@
   function renderSelection() {
     elements.selectionAName.textContent = selectionLabel('a')
     elements.selectionBName.textContent = selectionLabel('b')
-    const ready = hasDistinctSelection()
+    const ready = hasComparableSelection()
     elements.compareSelected.disabled = !ready || state.compareLoading
     elements.runComparison.disabled = !ready || state.compareLoading
-    elements.compareTabState.textContent = ready ? '可以分析' : '请选择两条'
+    elements.compareTabState.textContent = ready ? '可以实验' : hasDistinctSelection() ? '任务不可比' : '请选择同任务尝试'
     elements.compareTabState.classList.toggle('is-ready', ready)
   }
 
@@ -341,9 +364,17 @@
         'aria-label': `将 ${compactString(run.runId, '运行', 42)} 选为运行 B`,
         'aria-pressed': String(state.selectedB === run.runId),
       })
+      const inspect = createButton('体检', 'select-run inspect-run', {
+        'data-action': 'inspect',
+        'data-run-id': run.runId,
+      })
+      const open = createButton('原对话', 'select-run inspect-run', {
+        'data-action': 'open',
+        'data-run-id': run.runId,
+      })
       if (state.selectedA === run.runId) selectA.classList.add('is-selected-a')
       if (state.selectedB === run.runId) selectB.classList.add('is-selected-b')
-      selectorPair.append(selectA, selectB)
+      selectorPair.append(selectA, selectB, inspect, open)
       selectorCell.append(selectorPair)
       row.append(selectorCell)
 
@@ -377,6 +408,46 @@
     elements.refreshRuns.disabled = state.runsLoading
     elements.refreshEmpty.disabled = state.runsLoading
     renderSelection()
+  }
+
+  function renderRunHealth() {
+    const run = state.inspectedRun
+    elements.runHealth.hidden = !run
+    if (!run) return
+    const diagnosis = run.diagnosis || {}
+    document.getElementById('run-health-title').textContent = `任务体检 · ${compactString(run.workspace || run.model, '未知项目', 40)} · ${formatDate(run.startedAt)}`
+    const gateLabels = { passed: '已完成', failed: '未完成', unknown: '未知' }
+    elements.runHealthGate.textContent = gateLabels[diagnosis.executionGate] || '未知'
+    elements.runHealthHeadline.textContent = summaryString(diagnosis.headline, '暂无体检结论。')
+    elements.executionGate.textContent = gateLabels[diagnosis.executionGate] || '未知'
+    elements.businessGate.textContent = '尚未验收'
+    elements.testGate.textContent = diagnosis.testDetected ? '已检测' : '未检测'
+    elements.runHealthIssues.replaceChildren(...(diagnosis.issues || []).map((item) => createTextElement('li', summaryString(item))))
+    elements.runHealthActions.replaceChildren(...(diagnosis.actions || []).map((item) => createTextElement('li', summaryString(item))))
+    elements.runHealthCaveat.textContent = summaryString(diagnosis.caveat, '执行完成不代表业务验收通过。')
+  }
+
+  async function inspectRun(runId) {
+    elements.runHealth.hidden = false
+    elements.runHealthHeadline.textContent = '正在生成单次任务体检…'
+    elements.runHealthFeedback.textContent = ''
+    try {
+      state.inspectedRun = await getApi().getRun(runId)
+      state.inspectedRunId = runId
+      renderRunHealth()
+      elements.runHealth.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } catch (error) {
+      elements.runHealthFeedback.textContent = `体检失败：${compactString(error && error.message, '未知错误', 120)}`
+    }
+  }
+
+  async function openOriginalRun(runId) {
+    try {
+      const result = await getApi().openOriginal(runId)
+      if (!result || !result.opened) elements.runHealthFeedback.textContent = '已切换到主窗口，但未能自动定位该历史对话。'
+    } catch (error) {
+      elements.runHealthFeedback.textContent = `无法打开原始对话：${compactString(error && error.message, '未知错误', 120)}`
+    }
   }
 
   function findSideValue(source, key, side) {
@@ -598,13 +669,14 @@
   function renderCompare() {
     renderComparePair()
     renderSelection()
-    const ready = hasDistinctSelection()
+    const ready = hasComparableSelection()
     elements.compareEmpty.hidden = ready
     elements.compareContent.hidden = !ready || !state.compareResult || state.compareLoading
     elements.runComparison.disabled = !ready || state.compareLoading
     elements.runComparison.querySelector('span:last-child').textContent = state.compareLoading ? '正在分析…' : '重新分析'
     if (!ready) {
-      setFeedback(elements.compareFeedback, '', '')
+      const incompatible = hasDistinctSelection()
+      setFeedback(elements.compareFeedback, incompatible ? '这两条记录不属于同一任务谱系，不能进行受控实验。' : '', incompatible ? 'error' : '')
       return
     }
     if (state.compareLoading) {
@@ -653,7 +725,7 @@
   }
 
   async function compareSelectedRuns() {
-    if (!hasDistinctSelection() || state.compareLoading) return
+    if (!hasComparableSelection() || state.compareLoading) return
     const runA = state.selectedA
     const runB = state.selectedB
     state.activeTab = 'compare'
@@ -699,10 +771,13 @@
   }
 
   function handleRunSelection(event) {
-    const button = event.target.closest('button[data-select-side][data-run-id]')
+    const button = event.target.closest('button[data-run-id]')
     if (!button || !elements.runsBody.contains(button)) return
-    const side = button.getAttribute('data-select-side')
+    const action = button.getAttribute('data-action')
     const runId = button.getAttribute('data-run-id')
+    if (action === 'inspect') { inspectRun(runId); return }
+    if (action === 'open') { openOriginalRun(runId); return }
+    const side = button.getAttribute('data-select-side')
     if (!runId || (side !== 'a' && side !== 'b')) return
     if (side === 'a') state.selectedA = state.selectedA === runId ? null : runId
     if (side === 'b') state.selectedB = state.selectedB === runId ? null : runId
@@ -732,6 +807,16 @@
       (api) => api.setBaseline(betterRunId()),
       '更优运行已设为后续对比基线。',
     ))
+    elements.openOriginal.addEventListener('click', () => state.inspectedRunId && openOriginalRun(state.inspectedRunId))
+    elements.copyRunFix.addEventListener('click', async () => {
+      if (!state.inspectedRunId) return
+      try {
+        await getApi().copyRunFix(state.inspectedRunId)
+        elements.runHealthFeedback.textContent = '修复任务已复制，可粘贴到原对话继续执行。'
+      } catch (error) {
+        elements.runHealthFeedback.textContent = `复制失败：${compactString(error && error.message, '未知错误', 120)}`
+      }
+    })
     elements.openRuns.addEventListener('click', () => setActiveTab('runs'))
     elements.tabRuns.addEventListener('keydown', (event) => {
       if (event.key === 'ArrowRight') {

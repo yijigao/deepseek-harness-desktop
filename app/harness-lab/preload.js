@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld('harnessLab', Object.freeze({
   copyOptimizationBrief: (runAId, runBId) => ipcRenderer.invoke('harness-lab:copy-brief', runAId, runBId),
   exportReport: (runAId, runBId) => ipcRenderer.invoke('harness-lab:export-report', runAId, runBId),
   setBaseline: (runId) => ipcRenderer.invoke('harness-lab:set-baseline', runId),
+  copyRunFix: (runId) => ipcRenderer.invoke('harness-lab:copy-run-fix', runId),
+  openOriginal: (runId) => ipcRenderer.invoke('harness-lab:open-original', runId),
 }))
