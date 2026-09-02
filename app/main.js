@@ -208,9 +208,33 @@ function startServer(port) {
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
-  serverChild.stdout.on('data', (chunk) => log(`[dsh] ${String(chunk).trimEnd()}`))
+  let stdout = ''
+  let resolveReadyUrl
+  let rejectReadyUrl
+  const readyUrl = new Promise((resolve, reject) => {
+    resolveReadyUrl = resolve
+    rejectReadyUrl = reject
+  })
+  const readyTimer = setTimeout(() => {
+    rejectReadyUrl(new Error('server did not report its authenticated URL within 90000ms'))
+  }, 90000)
+  serverChild.stdout.on('data', (chunk) => {
+    const text = String(chunk)
+    stdout = `${stdout}${text}`.slice(-8192)
+    log(`[dsh] ${text.trimEnd()}`)
+    const match = /dsh web: (http:\/\/[^\s]+)/u.exec(stdout)
+    if (!match) return
+    try {
+      const parsed = new URL(match[1])
+      if (parsed.hostname !== '127.0.0.1' || parsed.port !== String(port)) return
+      clearTimeout(readyTimer)
+      resolveReadyUrl(parsed.href)
+    } catch {}
+  })
   serverChild.stderr.on('data', (chunk) => log(`[dsh!] ${String(chunk).trimEnd()}`))
   serverChild.on('exit', (code, signal) => {
+    clearTimeout(readyTimer)
+    rejectReadyUrl(new Error('server exited before reporting its authenticated URL'))
     log(`dsh server exited (code=${code}, signal=${signal})`)
     serverChild = null
     if (!stopping) {
@@ -221,6 +245,7 @@ function startServer(port) {
       app.quit()
     }
   })
+  return readyUrl
 }
 
 function injectDesktopFrame(win) {
@@ -246,7 +271,7 @@ function readInjected(name) {
   }
 }
 
-async function createWindow(port) {
+async function createWindow(authenticatedUrl) {
   mainWindow = new BrowserWindow({
     width: 1380,
     height: 900,
@@ -272,7 +297,7 @@ async function createWindow(port) {
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('cc:max-changed', false))
   mainWindow.on('closed', () => { mainWindow = null })
 
-  const base = `http://127.0.0.1:${port}/`
+  const base = new URL('/', authenticatedUrl).href
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url) && !url.startsWith(base)) shell.openExternal(url)
     return { action: 'deny' }
@@ -282,7 +307,7 @@ async function createWindow(port) {
   })
 
   injectDesktopFrame(mainWindow)
-  await mainWindow.loadURL(base)
+  await mainWindow.loadURL(authenticatedUrl)
 }
 
 function isTrustedSender(event, win) {
@@ -929,9 +954,9 @@ if (!gotLock) {
     let port
     try {
       port = await findFreePort()
-      startServer(port)
+      const readyUrl = startServer(port)
       await waitForHttp(port, 90000)
-      await createWindow(port)
+      await createWindow(await readyUrl)
       log('window ready')
     } catch (error) {
       log(`startup failed: ${error && error.stack ? error.stack : String(error)}`)
