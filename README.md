@@ -99,7 +99,7 @@ npm start -- --demo-harness-lab
 
 ## 构建
 
-准备上游 DeepSeek Harness 源码及其依赖后运行：
+准备上游 DeepSeek Harness 源码及其依赖后运行。Desktop 使用的 Harness 分支直接在 `packages/client/ui-primitives/src/clipboard.ts` 集成原生剪贴板 host；更新脚本会合并官方 `origin/master`，构建后只校验该能力，不再修改压缩后的前端 bundle：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\sync-update.ps1 `
@@ -107,7 +107,7 @@ powershell -ExecutionPolicy Bypass -File scripts\sync-update.ps1 `
   -BuildOnly
 ```
 
-安装版与便携版生成在 `dist/`。构建流程会完成运行时部署、依赖补齐、补丁应用、冒烟测试和 Electron 打包，不依赖固定用户名或绝对路径。
+安装版与便携版生成在 `dist/`。构建流程会完成官方源码同步、运行时部署、依赖补齐、旧功能兼容处理、源码集成校验、冒烟测试和 Electron 打包，不依赖固定用户名或绝对路径。
 
 ## 隐私与安全
 

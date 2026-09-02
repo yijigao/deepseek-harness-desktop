@@ -59,6 +59,14 @@ const raw = readFileSync(target, 'utf8')
 const eol = raw.includes('\r\n') ? '\r\n' : '\n'
 const lines = raw.split(/\r?\n/)
 
+const upstreamIntegrated = raw.includes('function credentialStoreFrom(ctx)')
+  && raw.includes('createModels(this.config.auth)')
+if (upstreamIntegrated) {
+  console.log('[check] upstream credential and OAuth seams are integrated; legacy patch is unnecessary')
+  syntaxCheck(target)
+  process.exit(0)
+}
+
 const already = raw.includes('class FileCredentialStore') && raw.includes('oauthCredentialsPath')
 if (already) {
   if (mode === 'check') {

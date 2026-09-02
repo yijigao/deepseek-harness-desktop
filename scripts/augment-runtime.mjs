@@ -118,14 +118,21 @@ async function copyPackage(rootName, sourceDir) {
   return dest
 }
 
-const sites = await collectSites()
-console.log(`collected ${sites.length} import sites`)
-
 const knownMissing = new Set()
 const unfindable = new Set()
+for (const rootName of ['@deepseek-ai/cosmokit', '@deepseek-ai/schemastery']) {
+  const sourceDir = await findInCheckout(rootName)
+  if (sourceDir) {
+    await copyPackage(rootName, sourceDir)
+    knownMissing.add(rootName)
+    console.log(`seeded ${rootName} <- ${sourceDir}`)
+  }
+}
 let round = 0
 while (true) {
   round += 1
+  const sites = await collectSites()
+  console.log(`round ${round}: collected ${sites.length} import sites`)
   const unresolved = []
   for (const { spec, from } of sites) {
     if (await resolvable(spec, from)) continue

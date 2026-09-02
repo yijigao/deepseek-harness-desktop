@@ -9,6 +9,8 @@ import path from 'node:path'
 import process from 'node:process'
 import http from 'node:http'
 import net from 'node:net'
+import fs from 'node:fs'
+import os from 'node:os'
 
 const root = path.resolve(process.argv[2])
 if (!root) {
@@ -17,20 +19,24 @@ if (!root) {
 }
 const binJs = path.join(root, 'lib', 'bin.js')
 const nodeExe = process.execPath
+const smokeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-runtime-smoke-'))
+process.on('exit', () => fs.rmSync(smokeHome, { recursive: true, force: true }))
 
 function run(args, { timeoutMs = 60000, waitForPort = false } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(nodeExe, [binJs, ...args], {
       cwd: root,
-      env: { ...process.env, DSH_HOME: process.env.DSH_HOME || path.join(process.env.USERPROFILE, '.dsh') },
+      env: { ...process.env, DSH_HOME: smokeHome },
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let out = ''
     let settled = false
+    let timeout
     const finish = (code, signal) => {
       if (settled) return
       settled = true
+      if (timeout !== undefined) clearTimeout(timeout)
       resolve({ code, signal, out })
     }
     child.stdout.on('data', (c) => {
@@ -47,7 +53,7 @@ function run(args, { timeoutMs = 60000, waitForPort = false } = {}) {
     })
     child.stderr.on('data', (c) => { out += String(c) })
     child.on('exit', (code, signal) => finish(code, signal))
-    setTimeout(() => {
+    timeout = setTimeout(() => {
       if (!settled) {
         try { child.kill() } catch {}
         finish(1, `timeout: ${out.slice(-2000)}`)

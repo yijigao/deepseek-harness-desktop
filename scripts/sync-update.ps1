@@ -11,6 +11,7 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+$env:CI = 'true'
 $logPath = Join-Path $env:TEMP 'deepseek-update.log'
 function Log([string]$msg) {
   $line = "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg
@@ -31,7 +32,7 @@ if (-not $node -or -not $git -or -not $pnpm) {
   exit 2
 }
 $staging    = Join-Path $dshexe 'staging'
-$runtime    = Join-Path $staging 'runtime'
+$runtime    = Join-Path $env:TEMP "dsh-desktop-runtime-$PID"
 $payloadRt  = Join-Path $staging 'payload\runtime'
 $distDir    = Join-Path $dshexe 'dist'
 $workspaceExe = if ($WorkspaceExe) { [System.IO.Path]::GetFullPath($WorkspaceExe) } else { Join-Path $dshexe 'DeepSeek-Desktop.exe' }
@@ -58,8 +59,9 @@ if ($local -eq $remote) {
 Log "new commits: $($local.Substring(0,8)) -> $($remote.Substring(0,8))"
 
 $lockBefore = (Get-FileHash (Join-Path $checkout 'pnpm-lock.yaml') -ErrorAction SilentlyContinue).Hash
-& $git -C $checkout merge --ff-only $remoteRef 2>&1 | ForEach-Object { Log "git: $_" }
+& $git -C $checkout merge --no-edit $remoteRef 2>&1 | ForEach-Object { Log "git: $_" }
 if ($LASTEXITCODE -ne 0) {
+  & $git -C $checkout merge --abort 2>$null
   Log 'git pull failed (non-fast-forward?) — manual merge required'
   exit 2
 }
@@ -81,7 +83,9 @@ if ($LASTEXITCODE -ne 0) { Log 'build:web failed'; exit 3 }
 # ── 3. 重建运行时闭包 ────────────────────────────────────────────────────────
 Log 'deploying runtime closure'
 Remove-Item -Recurse -Force $runtime -ErrorAction SilentlyContinue
-& $pnpm --filter @deepseek-ai/dsh deploy --legacy --prod $runtime 2>&1 | ForEach-Object { Log "deploy: $_" }
+Push-Location (Join-Path $checkout 'apps\cli')
+& $pnpm '--filter=.' deploy --legacy --prod $runtime 2>&1 | ForEach-Object { Log "deploy: $_" }
+Pop-Location
 if (-not (Test-Path (Join-Path $runtime 'lib\bin.js'))) { Log 'deploy produced no runtime'; exit 4 }
 
 Log 'augmenting runtime (peers)'
@@ -104,6 +108,10 @@ if ($LASTEXITCODE -ne 0) { Log 'pi-ai OAuth patch FAILED — aborting build'; ex
 
 Log 'patching native session pin support'
 & $node (Join-Path $dshexe 'scripts\patch-session-pins.mjs') $runtimeNew 2>&1 | ForEach-Object { Log "patch-session-pins: $_" }
+if ($LASTEXITCODE -ne 0) { Log 'session pin patch failed; aborting build'; exit 10 }
+Log 'verifying source-integrated native clipboard support'
+& $node (Join-Path $dshexe 'scripts\verify-clipboard-integration.mjs') $runtimeNew 2>&1 | ForEach-Object { Log "verify-clipboard: $_" }
+if ($LASTEXITCODE -ne 0) { Log 'clipboard source integration missing; aborting build'; exit 11 }
 if ($LASTEXITCODE -ne 0) { Log 'session pin patch FAILED — aborting build'; exit 10 }
 
 Log 'smoke-testing flattened runtime'
@@ -120,7 +128,7 @@ Remove-Item -Recurse -Force $payloadOld -ErrorAction SilentlyContinue
 # ── 4. 版本信息 + 打 exe ─────────────────────────────────────────────────────
 Log 'writing version.json'
 $appVersion = (Get-Content (Join-Path $dshexe 'app\package.json') -Raw | ConvertFrom-Json).version
-& $node (Join-Path $dshexe 'scripts\gen-version.mjs') (Join-Path $staging 'payload') $appVersion 2>&1 | ForEach-Object { Log "version: $_" }
+& $node (Join-Path $dshexe 'scripts\gen-version.mjs') (Join-Path $staging 'payload') $appVersion $checkout 2>&1 | ForEach-Object { Log "version: $_" }
 Copy-Item (Join-Path $dshexe 'app\fix-junctions.js') (Join-Path $staging 'payload\fix-junctions.js') -Force
 Copy-Item (Join-Path $dshexe 'app\build\icon.ico') (Join-Path $staging 'payload\icon.ico') -Force
 Copy-Item (Join-Path $dshexe 'scripts\sync-update.ps1') (Join-Path $staging 'payload\sync-update.ps1') -Force

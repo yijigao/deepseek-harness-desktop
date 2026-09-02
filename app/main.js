@@ -766,6 +766,12 @@ if (!gotLock) {
     if (!isTrustedSender(event, mainWindow)) throw new Error('Session pin update denied')
     return writeSessionPins(value)
   })
+  ipcMain.handle('cc:write-clipboard', (event, value) => {
+    if (!isTrustedSender(event, mainWindow)) throw new Error('Clipboard request denied')
+    if (typeof value !== 'string' || value.length > 2 * 1024 * 1024) return false
+    clipboard.writeText(value)
+    return true
+  })
   ipcMain.handle('cc:model-resources', (event) => {
     if (!isTrustedSender(event, mainWindow)) throw new Error('Resource request denied')
     modelResourceService?.scheduleRefresh().catch(() => {})

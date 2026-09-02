@@ -102,13 +102,13 @@ export function patchWorkspaceClient(source) {
     'pin selection')
 
   out = replaceOnce(out,
-    '\t\tfunction SessionTree({ useSessions, startSession, open, forkSession, workspaces, archivedSessionIds, onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, insertWorkspaceBefore, insertSessionBefore, orderBy, groupExpansion, setGroupExpanded, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t }) {',
-    '\t\tfunction SessionTree({ useSessions, startSession, open, forkSession, workspaces, archivedSessionIds, onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, pinnedSessionIds, togglePinnedSession, insertWorkspaceBefore, insertSessionBefore, orderBy, groupExpansion, setGroupExpanded, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t }) {',
+    '\t\tfunction SessionTree({ useSessions, useSessionPendingInteraction, startSession, open, forkSession, workspaces, archivedSessionIds, onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, insertWorkspaceBefore, insertSessionBefore, orderBy, groupExpansion, setGroupExpanded, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t }) {',
+    '\t\tfunction SessionTree({ useSessions, useSessionPendingInteraction, startSession, open, forkSession, workspaces, archivedSessionIds, onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, pinnedSessionIds, togglePinnedSession, insertWorkspaceBefore, insertSessionBefore, orderBy, groupExpansion, setGroupExpanded, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t }) {',
     'tree props')
 
   out = replaceOnce(out,
-    '\t\t\t\t\t\t\t\t\t(expandedSessionGroups.includes(group.key) ? group.sessions : group.sessions.slice(0, COLLAPSED_SESSION_LIMIT)).map((node) => {',
-    '\t\t\t\t\t\t\t\t\t(expandedSessionGroups.includes(group.key) ? pinFirstRows(group.sessions, pinnedSessionIds) : pinFirstRows(group.sessions, pinnedSessionIds).slice(0, COLLAPSED_SESSION_LIMIT)).map((node) => {',
+    '\t\t\t\t\t\t\t(sessionsExpanded ? group.sessions : collapsed.rows).map((node) => {',
+    '\t\t\t\t\t\t\t(sessionsExpanded ? pinFirstRows(group.sessions, pinnedSessionIds) : collapsedSessionRows(pinFirstRows(group.sessions, pinnedSessionIds)).rows).map((node) => {',
     'tree pin ordering')
 
   out = replaceOnce(out,
@@ -117,8 +117,8 @@ export function patchWorkspaceClient(source) {
     'tree row pin props')
 
   out = replaceOnce(out,
-    '\t\tfunction FlatList({ useSessions, open, forkSession, onSessionRename, onSessionArchive, archivedSessionIds, orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, t }) {',
-    '\t\tfunction FlatList({ useSessions, open, forkSession, onSessionRename, onSessionArchive, pinnedSessionIds, togglePinnedSession, archivedSessionIds, orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, t }) {',
+    '\t\tfunction FlatList({ useSessions, useSessionPendingInteraction, open, forkSession, onSessionRename, onSessionArchive, archivedSessionIds, orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, t }) {',
+    '\t\tfunction FlatList({ useSessions, useSessionPendingInteraction, open, forkSession, onSessionRename, onSessionArchive, pinnedSessionIds, togglePinnedSession, archivedSessionIds, orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, t }) {',
     'flat props')
 
   out = replaceOnce(out,

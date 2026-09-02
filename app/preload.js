@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('ccDesktop', {
   getModelResources: () => ipcRenderer.invoke('cc:model-resources'),
   getPinnedSessions: () => ipcRenderer.invoke('cc:get-session-pins'),
   setPinnedSessions: (ids) => ipcRenderer.invoke('cc:set-session-pins', ids),
+  writeClipboard: (text) => ipcRenderer.invoke('cc:write-clipboard', text),
   isMaximized: () => ipcRenderer.invoke('cc:isMax'),
   onMaxChanged: (callback) => {
     ipcRenderer.on('cc:max-changed', (_event, value) => callback(Boolean(value)))
