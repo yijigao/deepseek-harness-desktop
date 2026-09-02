@@ -85,4 +85,6 @@ html body[data-ds-dark-theme] ::selection { background: rgba(77,141,255,.38); }
 #cc-titlebar .cc-resource-chip[data-level="critical"] { border-color:rgba(255,125,139,.58); }
 #cc-titlebar .cc-resource-chip[data-level="warning"] .cc-resource-quota { color:var(--dss-warning); }
 #cc-titlebar .cc-resource-chip[data-level="critical"] .cc-resource-quota { color:var(--dss-danger); }
-body { padding-top:36px !important; }
+html, body { height:100%; overflow:hidden; }
+body { box-sizing:border-box; padding-top:36px !important; }
+body > #root { height:100%; overflow:hidden; }
