@@ -108,7 +108,7 @@ function toolPath(name) {
 
 function probeCodexUsage() {
   return new Promise((resolve) => {
-    const child = spawn(nodeExePath(), [toolPath('model-resource-probe.mjs'), resolveRuntimeRoot(), dshHomePath()], {
+    const child = spawn(nodeExePath(), ['--use-env-proxy', toolPath('model-resource-probe.mjs'), resolveRuntimeRoot(), dshHomePath()], {
       windowsHide: true,
       env: { ...process.env, NODE_USE_ENV_PROXY: '1', DSH_HOME: dshHomePath() },
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -202,7 +202,7 @@ function startServer(port) {
   }
 
   log(`spawning node ${binJs} web --port ${port} (DSH_HOME=${env.DSH_HOME})`)
-  serverChild = spawn(nodeExe, [binJs, 'web', '--host', '127.0.0.1', '--port', String(port)], {
+  serverChild = spawn(nodeExe, ['--use-env-proxy', binJs, 'web', '--host', '127.0.0.1', '--port', String(port)], {
     cwd: path.dirname(app.getPath('exe')),
     env,
     windowsHide: true,
