@@ -202,7 +202,7 @@ function startServer(port) {
   }
 
   log(`spawning node ${binJs} web --port ${port} (DSH_HOME=${env.DSH_HOME})`)
-  serverChild = spawn(nodeExe, ['--use-env-proxy', binJs, 'web', '--host', '127.0.0.1', '--port', String(port)], {
+  serverChild = spawn(nodeExe, ['--use-env-proxy', binJs, 'web', '--no-open', '--host', '127.0.0.1', '--port', String(port)], {
     cwd: path.dirname(app.getPath('exe')),
     env,
     windowsHide: true,
@@ -1013,6 +1013,8 @@ if (!gotLock) {
             const accent = bodyStyle.getPropertyValue('--dsw-alias-brand-primary').trim()
             return {
               titlebarPresent: Boolean(bar),
+              appContentPresent: Boolean(document.body.innerText.replace(bar?.innerText || '', '').trim()),
+              viewportOverflow: document.documentElement.scrollHeight > document.documentElement.clientHeight,
               darkAttr: document.body.hasAttribute('data-ds-dark-theme'),
               bodyBg: bodyStyle.backgroundColor,
               bodyPaddingTop: bodyStyle.paddingTop,
@@ -1025,6 +1027,8 @@ if (!gotLock) {
             || String(report.accent) === '#4d8dff'
             || String(report.accent).includes('77, 141, 255')
           const ok = report.titlebarPresent
+            && report.appContentPresent
+            && !report.viewportOverflow
             && report.titlebarBg === 'rgb(5, 10, 18)'
             && themeOk
           console.log(`VERIFY ${JSON.stringify(report)}`)

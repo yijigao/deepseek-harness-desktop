@@ -149,7 +149,7 @@ if ($portable) {
   Log "workspace exe updated: $workspaceExe"
 } else { Log 'no portable artifact found'; exit 8 }
 
-if (-not $BuildOnly -and -not $appRunning) {
+if ($false) {
   $setup = Get-ChildItem $distDir -Filter 'DeepSeek-Setup-*.exe' | Where-Object { $_.Name -notmatch '__uninstaller' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if ($setup) {
     Log 'reinstalling'
@@ -160,7 +160,14 @@ if (-not $BuildOnly -and -not $appRunning) {
   Log 'app is running — skipping reinstall (interactive mode quits the app first, so this should not happen)'
 }
 
-if ($Relaunch -and (Test-Path $Relaunch)) {
+if (-not $BuildOnly) {
+  Log 'validating candidate and switching installation with rollback protection'
+  & (Join-Path $dshexe 'scripts\install-validated.ps1') -Candidate (Join-Path $distDir 'win-unpacked') 2>&1 |
+    ForEach-Object { Log "install: $_" }
+  if ($LASTEXITCODE -ne 0) { Log 'validated install failed; previous installation retained or restored'; exit 12 }
+}
+
+if ($BuildOnly -and $Relaunch -and (Test-Path $Relaunch)) {
   Log "relaunching $Relaunch"
   Start-Process $Relaunch
 }
