@@ -1,8 +1,8 @@
 <div align="center">
   <img src="assets/deepseek-whale-225.png" width="88" alt="DeepSeek Harness Desktop logo">
   <h1>DeepSeek Harness Desktop</h1>
-  <p><strong>让 DeepSeek Harness 成为更顺手的 Windows 桌面应用。</strong></p>
-  <p>会话置顶 · 模型用量中心 · 本地执行轨迹分析</p>
+  <p><strong>把 DeepSeek Harness 变成一个更适合长期使用的 Windows AI Agent 工作台。</strong></p>
+  <p>多 Provider · Harness Lab · 模型资源中心 · 原生会话管理 · 本地桌面体验</p>
   <p><a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v2.2.0/DeepSeek-Setup-2.2.0.exe"><strong>下载 v2.2.0 安装版</strong></a> · <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v2.2.0">版本说明</a></p>
   <p>
     <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/yijigao/deepseek-harness-desktop?label=release" alt="Latest release"></a>
@@ -13,7 +13,15 @@
   </p>
 </div>
 
-DeepSeek Harness Desktop 是由社区维护的 Windows 桌面封装：把完整的 `dsh web` 运行时放进独立 Electron 窗口，同时补上高频会话管理、模型资源可见性和本地 Harness 分析能力。
+DeepSeek Harness Desktop 是由社区维护的 Windows AI Agent 工作台。它保留 Harness 原生的工作区、模型、插件、Agent 预设和权限体系，并补齐长期桌面使用所需的运行可靠性、模型接入、资源可见性、Agent 执行诊断和原生交互；它并非只把 `dsh web` 放进 Electron 窗口。
+
+## 为什么它不只是一个桌面壳
+
+- **多 Provider / OpenAI-compatible**：复用 Harness Provider 架构，提供 OpenAI-compatible Provider 配置能力，以及 ChatGPT subscription OAuth 路由和第三方 Provider 配置示例。
+- **Harness Lab**：在本地分析 Agent 执行轨迹，包括工具调用、重试、失败恢复、重复循环、文件操作和执行路径；它是任务诊断工具，不是简单的模型排行榜。
+- **模型资源中心**：Provider 支持时显示真实账户用量、余额和重置时间；不支持时明确降级为本地 Token 观察，不伪造 Provider 数据。
+- **原生桌面能力**：提供会话置顶、原生剪贴板、独立窗口和本地运行时管理，并尽量在数据层或源码层集成，避免依赖脆弱的 DOM hack。
+- **可验证、可回滚升级（当前 main）**：候选构建先隔离执行启动、Renderer/UI 与截图验证；适用时运行已认证的模型网络探测，通过后再原子切换，失败则回滚，并对迁移执行版本门控和备份。
 
 > [!TIP]
 > 如果这个项目让 DeepSeek Harness 更好用，欢迎点一个 **Star**，帮助更多人发现它。
@@ -71,6 +79,12 @@ Harness Lab 用来回答“这次任务是怎样完成的，以及哪里值得�
 
 桌面版保留工作区、模型、插件、Agent 预设、权限和语言等 Harness 原生能力，并直接复用现有 `DSH_HOME`。[`config-example/`](config-example/README.md) 提供多提供商与 ChatGPT 订阅 OAuth 路由的配置示例；仓库不包含任何真实凭据。
 
+## Provider integrations
+
+DeepSeek Harness Desktop reuses the Harness provider architecture. OpenAI-compatible providers can be added as optional providers without rewriting the Agent, session, or tool layers.
+
+Model/API providers interested in tested integration, onboarding, documentation, resource or usage visibility where APIs support it, or release collaboration can contact the project through a [GitHub Issue](https://github.com/yijigao/deepseek-harness-desktop/issues).
+
 ## 本地开发
 
 要求 Node.js 22.15+：
@@ -109,6 +123,8 @@ powershell -ExecutionPolicy Bypass -File scripts\sync-update.ps1 `
 
 安装版与便携版生成在 `dist/`。构建流程会完成官方源码同步、运行时部署、依赖补齐、旧功能兼容处理、源码集成校验、冒烟测试和 Electron 打包，不依赖固定用户名或绝对路径。
 
+安装更新时，候选构建会先在独立目录完成启动、Renderer/UI 和截图验证；存在适用凭据时还会执行模型网络探测。验证通过后才切换安装目录，激活失败则恢复上一版本；需要迁移的本地数据按版本门控并先行备份。
+
 ## 隐私与安全
 
 仓库明确排除以下内容：
@@ -121,4 +137,4 @@ powershell -ExecutionPolicy Bypass -File scripts\sync-update.ps1 `
 
 ## 许可
 
-桌面封装代码采用 [MIT License](LICENSE)。DeepSeek Harness 及其依赖仍分别适用各自的许可证和商标条款；分发包含上游运行时的安装包前，请自行核对对应许可。
+桌面端代码采用 [MIT License](LICENSE)。DeepSeek Harness 及其依赖仍分别适用各自的许可证和商标条款；分发包含上游运行时的安装包前，请自行核对对应许可。
