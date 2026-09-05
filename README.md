@@ -32,11 +32,11 @@ DeepSeek Harness Desktop 是由社区维护的 Windows AI Agent 工作台。它�
 ## v2.2.0 有什么新功能
 
 - **原生会话置顶**：在会话菜单中置顶或取消置顶，结果持久保存。排序发生在 React 数据层，不使用 DOM 轮询、观察器或后台扫描。
-- **模型资源中心**：顶部常驻显示当前模型，并在提供商允许时展示用量、余额与重置时间；服务不可用时降级到本地 Token 用量。
+- **模型资源中心**：顶部常驻显示当前模型，并统一展示 ChatGPT 订阅配额、DeepSeek API 余额和本机 Token 用量；服务不可用时自动降级，不阻塞会话。
 - **Harness Lab**：在本机比较两次任务的执行轨迹，查看工具调用、重试、失败恢复、重复循环与文件变动，而不是把不同目标的任务当作模型排行榜。
 - **完整桌面体验**：独立窗口、原生窗口控制、共享现有 Harness 配置和会话，关闭应用时同步回收本地服务。
 
-![DeepSeek Harness Desktop 主界面](assets/screenshots/workspace.png)
+![DeepSeek Harness Desktop 中运行 GPT-6 Astra 长任务会话](assets/screenshots/workspace.png)
 
 ## 快速开始
 
@@ -54,7 +54,11 @@ DeepSeek Harness Desktop 是由社区维护的 Windows AI Agent 工作台。它�
 
 ## 模型资源中心
 
-模型资源中心优先读取提供商返回的真实账户信息，展示当前模型、用量或余额以及重置时间。若提供商不开放这些数据，则明确降级为本机会话 Token 统计，不伪造“余额”。账户探测和会话统计均在后台执行，不阻塞主界面启动与操作。
+模型资源中心优先读取提供商返回的真实账户信息，在一个面板中展示当前会话路由、ChatGPT 订阅配额及恢复时间、DeepSeek API 人民币余额，以及当前会话、今日和本月的本机 Token 用量。若提供商不开放账户数据，则明确降级为本机 Token 统计，不伪造“余额”。账户探测和会话统计均在后台执行，不阻塞主界面启动与操作。
+
+![模型资源中心展示 ChatGPT 订阅配额、DeepSeek API 余额和本机 Token 用量](assets/screenshots/model-resources.png)
+
+截图中的模型、配额和余额来自当前部署示例，不代表固定的产品限制或默认账户数据。
 
 ## Harness Lab
 
