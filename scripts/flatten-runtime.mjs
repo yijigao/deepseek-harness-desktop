@@ -6,7 +6,7 @@
  * nested as real copies under the packages whose dependency ranges demand
  * them (resolution then walks up: nested → parent → top-level).
  *
- * Usage: node flatten-runtime.mjs <srcRuntime> <dstRuntime>
+ * Usage: node flatten-runtime.mjs <srcRuntime> <dstRuntime> [--dependency-root <checkoutRoot>]
  */
 import { cp, lstat, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { lstatSync } from 'node:fs'
@@ -14,16 +14,34 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 import process from 'node:process'
 
-const [srcArg, dstArg] = process.argv.slice(2)
-if (!srcArg || !dstArg) {
-  console.error('usage: node flatten-runtime.mjs <srcRuntime> <dstRuntime>')
+const [srcArg, dstArg, ...extraArgs] = process.argv.slice(2)
+if (!srcArg || !dstArg || srcArg.startsWith('--') || dstArg.startsWith('--')
+  || (extraArgs.length !== 0 && (extraArgs.length !== 2
+    || extraArgs[0] !== '--dependency-root' || !extraArgs[1] || extraArgs[1].startsWith('--')))) {
+  console.error('usage: node flatten-runtime.mjs <srcRuntime> <dstRuntime> [--dependency-root <checkoutRoot>]')
   process.exit(2)
 }
 const src = path.resolve(srcArg)
 const dst = path.resolve(dstArg)
+const dependencyRoot = extraArgs.length === 0 ? src : path.resolve(extraArgs[1])
+const pnpmRoot = path.join(dependencyRoot, 'node_modules', '.pnpm')
+
+// Validate inputs before touching the destination. A separate dependency root
+// supplies only its virtual store; runtime files and materialized workspace
+// packages always come from src.
+const inside = (base, candidate) => {
+  const relative = path.relative(base, candidate)
+  return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))
+}
+if (inside(src, dst) || inside(dst, src) || inside(dependencyRoot, dst) || inside(dst, dependencyRoot)) {
+  throw new Error('runtime destination must not overlap either source root')
+}
+if (!(await stat(pnpmRoot).then(value => value.isDirectory(), () => false))) {
+  throw new Error(`pnpm dependency store missing: ${pnpmRoot}`)
+}
 
 // semver lives in the dshexe/app devDependencies (electron-builder pulls it).
-const require2 = createRequire('C:/Users/yi/Documents/DeepSeek/dshexe/app/package.json')
+const require2 = createRequire(new URL('../app/package.json', import.meta.url))
 let semver
 try {
   semver = require2('semver')
@@ -53,16 +71,18 @@ async function identity(dir) {
 
 /** Collect real package instances: top-level hoisted dirs + .pnpm instances. */
 async function collectInstances() {
-  const instances = [] // { name, version, dir }
+  const instances = [] // { name, version, dir, sourceOwned }
   const seen = new Set()
-  const push = async (dir, nameHint) => {
+  const push = async (dir, nameHint, sourceOwned) => {
     if (!(await isRealDir(dir))) return
-    const { name, version } = await identity(dir)
-    if (!name) return
+    const packageIdentity = await identity(dir)
+    const name = nameHint ?? packageIdentity.name
+    const version = packageIdentity.version
+    if (!name || !packageIdentity.name) return
     const key = `${name}@${version}`
     if (seen.has(key)) return
     seen.add(key)
-    instances.push({ name, version, dir })
+    instances.push({ name, version, dir, sourceOwned })
   }
 
   // existing top-level real dirs (deploy hoist + augmented copies)
@@ -71,15 +91,15 @@ async function collectInstances() {
     if (!scope.isDirectory() || scope.name.startsWith('.')) continue
     if (scope.name.startsWith('@')) {
       for (const sub of await readdir(path.join(top, scope.name), { withFileTypes: true })) {
-        if (sub.isDirectory()) await push(path.join(top, scope.name, sub.name), undefined)
+        if (sub.isDirectory()) await push(path.join(top, scope.name, sub.name), undefined, true)
       }
     } else {
-      await push(path.join(top, scope.name), undefined)
+      await push(path.join(top, scope.name), undefined, true)
     }
   }
 
   // .pnpm virtual store instances
-  const pnpm = path.join(top, '.pnpm')
+  const pnpm = pnpmRoot
   for (const key of await readdir(pnpm, { withFileTypes: true })) {
     if (!key.isDirectory()) continue
     const nm = path.join(pnpm, key.name, 'node_modules')
@@ -89,10 +109,10 @@ async function collectInstances() {
       if (!scope.isDirectory() || scope.name.startsWith('.')) continue
       if (scope.name.startsWith('@')) {
         for (const sub of await readdir(path.join(nm, scope.name), { withFileTypes: true })) {
-          if (sub.isDirectory()) await push(path.join(nm, scope.name, sub.name), undefined)
+          if (sub.isDirectory()) await push(path.join(nm, scope.name, sub.name), `${scope.name}/${sub.name}`, false)
         }
       } else {
-        await push(path.join(nm, scope.name), undefined)
+        await push(path.join(nm, scope.name), scope.name, false)
       }
     }
   }
@@ -104,6 +124,34 @@ const cmpVersions = (a, b) => {
   const bv = semver.valid(b)
   if (av && bv) return semver.rcompare(av, bv)
   return String(b).localeCompare(String(a))
+}
+
+const npmAlias = (range) => {
+  if (!range.startsWith('npm:')) return undefined
+  const match = range.match(/^npm:((?:@[^/]+\/)?[^@]+)@(.+)$/)
+  return match ? { actualName: match[1], range: match[2] } : undefined
+}
+
+const comparableRange = (range) => {
+  return npmAlias(range)?.range ?? range
+}
+
+const platformAllows = (values, current) => {
+  if (!Array.isArray(values) || values.length === 0) return true
+  if (values.includes(`!${current}`)) return false
+  const positive = values.filter(value => !value.startsWith('!'))
+  return positive.length === 0 || positive.includes(current)
+}
+
+async function platformCompatibleInstance(inst) {
+  const manifest = JSON.parse(await readFile(path.join(inst.dir, 'package.json'), 'utf8'))
+  return platformAllows(manifest.os, process.platform)
+    && platformAllows(manifest.cpu, process.arch)
+}
+
+async function compatibleAliasInstance(inst, range) {
+  return await platformCompatibleInstance(inst)
+    && semver.satisfies(semver.valid(inst.version) ?? inst.version, comparableRange(range), { loose: true })
 }
 
 async function copyPackageContent(from, to) {
@@ -122,8 +170,63 @@ async function copyPackageContent(from, to) {
   })
 }
 
-const instances = await collectInstances()
-console.log(`collected ${instances.length} real package instances`)
+const collectedInstances = await collectInstances()
+console.log(`collected ${collectedInstances.length} real package instances`)
+let instances = collectedInstances
+if (extraArgs.length > 0) {
+  // A separate checkout store contains build/test dependencies that are not
+  // part of the runtime. Materialized packages are roots because config can
+  // load them dynamically; retain only their transitive runtime dependencies.
+  const eligibleInstances = []
+  for (const inst of collectedInstances) {
+    if (inst.sourceOwned || await platformCompatibleInstance(inst)) eligibleInstances.push(inst)
+  }
+  const availableByName = new Map()
+  for (const inst of eligibleInstances) {
+    const list = availableByName.get(inst.name) ?? []
+    list.push(inst)
+    availableByName.set(inst.name, list)
+  }
+  const reachableNames = new Set(collectedInstances.filter(inst => inst.sourceOwned).map(inst => inst.name))
+  const reachabilityQueue = [src, ...collectedInstances.filter(inst => inst.sourceOwned).map(inst => inst.dir)]
+  const inspected = new Set()
+  while (reachabilityQueue.length > 0) {
+    const current = reachabilityQueue.shift()
+    if (inspected.has(current)) continue
+    inspected.add(current)
+    for (const [name, range] of Object.entries(await depSpecs(current))) {
+      const alias = npmAlias(range)
+      if (alias) {
+        const aliasInstances = availableByName.get(name) ?? []
+        const existingVersions = new Set(aliasInstances.map(inst => inst.version))
+        const added = []
+        for (const inst of availableByName.get(alias.actualName) ?? []) {
+          if (!existingVersions.has(inst.version) && await compatibleAliasInstance(inst, range)) {
+            added.push({ ...inst, name })
+            existingVersions.add(inst.version)
+          }
+        }
+        if (added.length > 0) {
+          aliasInstances.push(...added)
+          availableByName.set(name, aliasInstances)
+          eligibleInstances.push(...added)
+        }
+        if (!reachableNames.has(name)) {
+          reachableNames.add(name)
+          for (const inst of aliasInstances) reachabilityQueue.push(inst.dir)
+        } else {
+          for (const inst of added) reachabilityQueue.push(inst.dir)
+        }
+        continue
+      }
+      if (reachableNames.has(name)) continue
+      reachableNames.add(name)
+      for (const inst of availableByName.get(name) ?? []) reachabilityQueue.push(inst.dir)
+    }
+  }
+  instances = eligibleInstances.filter(inst => inst.sourceOwned || reachableNames.has(inst.name))
+  console.log(`retained ${instances.length} runtime-reachable package instances`)
+}
 
 // choose top-level per name
 const byName = new Map()
@@ -134,10 +237,16 @@ for (const inst of instances) {
 }
 const topLevel = new Map() // name -> { version, dir }
 const alternates = new Map() // name -> instances not at top level
+const rootSpecs = await depSpecs(src)
 for (const [name, list] of byName) {
   list.sort((a, b) => cmpVersions(a.version, b.version))
-  topLevel.set(name, list[0])
-  if (list.length > 1) alternates.set(name, list.slice(1))
+  // The runtime root cannot have a second nested node_modules. Prefer its
+  // required version at top level, then nest alternatives for other packages.
+  const rootRange = rootSpecs[name]
+  const selected = rootRange === undefined ? list[0]
+    : list.find(inst => semver.satisfies(semver.valid(inst.version) ?? inst.version, comparableRange(rootRange), { loose: true })) ?? list[0]
+  topLevel.set(name, selected)
+  if (list.length > 1) alternates.set(name, list.filter(inst => inst !== selected))
 }
 console.log(`top-level packages: ${topLevel.size}, names with alternates: ${alternates.size}`)
 
@@ -153,12 +262,20 @@ for (const [name, inst] of topLevel) {
 }
 console.log(`hoisted ${copied} packages`)
 
+// The root manifest must exist before the dependency walk below, otherwise
+// the CLI's own version ranges never participate in alternate selection.
+for (const entry of ['lib', 'config', 'package.json']) {
+  const from = path.join(src, entry)
+  const to = path.join(dst, entry)
+  if (await stat(from).then(() => true, () => false)) await copyPackageContent(from, to)
+}
+
 /** Dep specs of a package dir (name -> range), workspace/links skipped. */
 async function depSpecs(dir) {
   let json
   try { json = JSON.parse(await readFile(path.join(dir, 'package.json'), 'utf8')) } catch { return {} }
   const out = {}
-  for (const field of ['dependencies', 'optionalDependencies']) {
+  for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
     for (const [name, range] of Object.entries(json[field] ?? {})) {
       if (typeof range !== 'string') continue
       if (range.startsWith('workspace:') || range.startsWith('file:')) continue
@@ -172,13 +289,13 @@ async function depSpecs(dir) {
 function topLevelSatisfies(name, range) {
   const inst = topLevel.get(name)
   if (!inst) return false
-  return semver.satisfies(semver.valid(inst.version) ?? inst.version, range, { loose: true })
+  return semver.satisfies(semver.valid(inst.version) ?? inst.version, comparableRange(range), { loose: true })
 }
 
 /** Find an alternate instance satisfying the range. */
 function alternateFor(name, range) {
   for (const alt of alternates.get(name) ?? []) {
-    if (semver.satisfies(semver.valid(alt.version) ?? alt.version, range, { loose: true })) return alt
+    if (semver.satisfies(semver.valid(alt.version) ?? alt.version, comparableRange(range), { loose: true })) return alt
   }
   return undefined
 }
@@ -237,14 +354,6 @@ while (queue.length > 0) {
 }
 console.log(`nested ${nestedCount} alternate version copies`)
 
-// runtime root files (lib/, config/, package.json) — no junctions there
-for (const entry of ['lib', 'config', 'package.json']) {
-  const from = path.join(src, entry)
-  const to = path.join(dst, entry)
-  if (await isRealDir(from) || await stat(from).then(() => true, () => false)) {
-    await copyPackageContent(from, to)
-  }
-}
 // no junctions remain — the manifest must not be shipped
 await rm(path.join(dst, '.dsh-junctions.json'), { force: true })
 await rm(path.join(dst, '.dsh-junction-root'), { force: true })

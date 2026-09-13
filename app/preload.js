@@ -4,13 +4,22 @@
  */
 const { contextBridge, ipcRenderer } = require('electron')
 
+contextBridge.exposeInMainWorld('dshHost', {
+  clipboard: { writeText: (text) => ipcRenderer.invoke('cc:write-clipboard', text) },
+})
+
 contextBridge.exposeInMainWorld('ccDesktop', {
   minimize: () => ipcRenderer.send('cc:min'),
   toggleMaximize: () => ipcRenderer.send('cc:max'),
   close: () => ipcRenderer.send('cc:close'),
-  openHarnessLab: () => ipcRenderer.send('cc:open-harness-lab'),
   openModelSettings: () => ipcRenderer.send('cc:open-model-settings'),
+  openTaskArchive: () => ipcRenderer.send('cc:open-task-archive'),
   getModelResources: () => ipcRenderer.invoke('cc:model-resources'),
+  getEngineState: () => ipcRenderer.invoke('cc:engine-state'),
+  recoverEngine: () => ipcRenderer.invoke('cc:recover-engine'),
+  onEngineState: (callback) => {
+    ipcRenderer.on('cc:engine-state', (_event, value) => callback(value))
+  },
   getPinnedSessions: () => ipcRenderer.invoke('cc:get-session-pins'),
   setPinnedSessions: (ids) => ipcRenderer.invoke('cc:set-session-pins', ids),
   writeClipboard: (text) => ipcRenderer.invoke('cc:write-clipboard', text),

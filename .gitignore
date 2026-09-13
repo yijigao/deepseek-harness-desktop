@@ -1,8 +1,10 @@
 # Dependencies and build outputs
 node_modules/
 dist/
+dist-validation-*/
 staging/
 release/
+release-artifacts/
 out/
 *.exe
 *.asar
@@ -11,6 +13,7 @@ out/
 .dsh/
 auth.json
 update-cache.json
+/maintenance/install-recovery-*.json
 *.log
 *.db
 *.sqlite*

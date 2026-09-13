@@ -20,10 +20,9 @@ test('both Electron windows retain isolation, sandboxing, and disabled Node inte
   assert.match(main, /setWindowOpenHandler\(\(\) => \(\{ action: 'deny' \}\)\)/)
   assert.match(main, /setPermissionRequestHandler/)
   assert.match(main, /event\.sender === win\.webContents/)
-  assert.match(main, /cannot read compressed sessions in this runtime/)
 })
 
-test('Harness Lab preload exposes only the approved query and action methods', () => {
+test('archived Harness Lab preload exposes only the approved query and action methods', () => {
   const preload = read('app/harness-lab/preload.js')
   assert.match(preload, /listRuns:/)
   assert.match(preload, /getRun:/)
@@ -58,7 +57,7 @@ test('Model Resources remains a sandboxed local control surface', () => {
   assert.doesNotMatch(main, /function modelHealth\(\)[\s\S]{0,800}spawnSync/)
 })
 
-test('Harness Lab renderer is static, local, and has no Node or arbitrary network access', () => {
+test('archived Harness Lab renderer is static, local, and has no Node or arbitrary network access', () => {
   const html = read('app/harness-lab/index.html')
   const renderer = read('app/harness-lab/renderer.js')
   assert.match(html, /不只看答案，更要看任务是怎么完成的。/)
@@ -98,11 +97,16 @@ test('screenshot automation accepts only a new PNG basename in the temporary dir
   assert.doesNotMatch(main, /writeFileSync\(target, image\.toPNG\(\)\)/)
 })
 
-test('Harness Lab automation re-queries rows after each state-changing selection', () => {
-  const main = read('app/main.js')
-  assert.match(main, /const selectRun = \(rowIndex, side\) => document\s*\.querySelectorAll\('#runs-body tr'\)\[rowIndex\]/)
-  assert.match(main, /selectRun\(0, 'a'\)\s*selectRun\(1, 'b'\)\s*document\.getElementById\('compare-selected'\)\?\.click\(\)/)
-  assert.match(main, /report\.diagnosis === '运行 B 的执行轨迹整体更精简、稳定。'/)
+test('Desktop removes Lab entry points without dropping resources or recovery', () => {
+  for (const file of ['app/main.js', 'app/preload.js', 'app/titlebar.js']) {
+    assert.doesNotMatch(read(file), /HarnessLab|Harness Lab|harness-lab|HARNESS_LAB|data-act="lab"/)
+  }
+  const titlebar = read('app/titlebar.js')
+  for (const action of ['settings', 'resources', 'recover', 'min', 'max', 'close']) {
+    assert.ok(titlebar.includes(`data-act="${action}"`), action)
+  }
+  assert.match(read('app/main.js'), /desktopActions:/)
+  assert.match(read('app/lib/model-resources/session-usage-worker.js'), /require\('\.\.\/trajectory\/normalize'\)/)
 })
 
 test('all committed JSONL fixtures are explicitly synthetic', () => {
@@ -128,13 +132,16 @@ test('smoke-validated compatibility claim is stated in audit and README', () => 
   }
 })
 
-test('packaging includes trajectory, DeepSea theme, local UI, preload, and synthetic demo assets', () => {
+test('packaging retains shared trajectory and model UI but excludes retired Lab assets', () => {
   const manifest = JSON.parse(read('app/package.json'))
-  for (const entry of ['harness-lab/**/*', 'lib/**/*', 'demo/**/*', 'themes/**/*']) {
+  for (const entry of ['lib/**/*', 'themes/**/*']) {
     assert.ok(manifest.build.files.includes(entry), entry)
   }
-  assert.ok(manifest.build.asarUnpack.includes('demo/**/*'))
-  assert.match(read('app/main.js'), /app\.asar\.unpacked', 'demo'/)
+  assert.ok(manifest.build.files.includes('!lib/harness-lab/**/*'))
+  assert.ok(!manifest.build.files.includes('harness-lab/**/*'))
+  assert.ok(!manifest.build.files.includes('demo/**/*'))
+  assert.ok(!(manifest.build.asarUnpack || []).includes('demo/**/*'))
+  assert.ok(!Object.hasOwn(manifest.scripts, 'start:harness-lab-demo'))
   assert.ok(manifest.build.files.includes('model-settings/**/*'))
   const resourceTargets = manifest.build.extraResources.map((entry) => entry.to)
   assert.ok(resourceTargets.includes('tools/oauth-login-openai-codex.mjs'))

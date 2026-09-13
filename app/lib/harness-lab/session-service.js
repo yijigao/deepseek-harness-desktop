@@ -6,9 +6,11 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { parseRun } = require('../trajectory/parser')
+const { parseRunOffThread } = require('../trajectory/parse-async')
+const { isZstd, zstdUnavailableError } = require('../trajectory/adapters/dsh-jsonl')
 const { compareRuns, diagnoseRun } = require('../trajectory/compare')
 
-const SESSION_FILES = new Set(['session.jsonl', 'session.jsonl.zstd'])
+const { selectGeneration } = require('../trajectory/session-generation')
 const PUBLIC_METRICS = Object.freeze([
   'total_steps',
   'user_messages',
@@ -31,7 +33,8 @@ const PUBLIC_METRICS = Object.freeze([
 ])
 
 function opaqueId(filePath) {
-  return crypto.createHash('sha256').update(path.resolve(filePath)).digest('hex').slice(0, 24)
+  const stablePath = path.resolve(filePath).replace(/([\\/])session\.v[1-9][0-9]*\.jsonl(?=\.zstd$|$)/, '$1session.jsonl')
+  return crypto.createHash('sha256').update(stablePath).digest('hex').slice(0, 24)
 }
 
 function resolveDshHome(configured) {
@@ -151,13 +154,14 @@ class HarnessLabSessionService {
       if (error && ['ENOENT', 'EACCES', 'EPERM'].includes(error.code)) return output
       throw error
     }
+    const selection = selectGeneration(entries)
     for (const entry of entries) {
       if (output.length >= this.maxFiles * 4) break
       if (entry.isSymbolicLink()) continue
       const candidate = path.join(directory, entry.name)
       if (entry.isDirectory()) {
         await this.collectSessionFiles(candidate, rootInfo, depth + 1, output)
-      } else if (entry.isFile() && SESSION_FILES.has(entry.name)) {
+      } else if (entry.isFile() && entry === selection.entry) {
         output.push(candidate)
       }
     }
@@ -260,7 +264,10 @@ class HarnessLabSessionService {
         && cached.ino === stat.ino
       ) return cached.run
       const contents = await handle.readFile()
-      const run = parseRun(contents, {
+      if (isZstd(contents, currentReal) && typeof require('node:zlib').zstdDecompressSync !== 'function') throw zstdUnavailableError()
+      // Compressed inputs can expand far beyond their on-disk size.
+      const parse = contents.length >= 256 * 1024 || currentReal.endsWith('.zstd') ? parseRunOffThread : parseRun
+      const run = await parse(contents, {
         fileName: path.basename(currentReal),
         identitySeed: runId,
         runId,
@@ -311,14 +318,14 @@ class HarnessLabSessionService {
       const runId = opaqueId(entry.filePath)
       nextRegistry.set(runId, entry)
       const cached = stored[runId]
-      if (cached && cached.mtimeMs === entry.mtimeMs && cached.size === entry.size && cached.summary?.lineageId) {
+      if (cached && cached.filePath === entry.filePath && cached.mtimeMs === entry.mtimeMs && cached.size === entry.size && cached.summary?.lineageId) {
         next[runId] = cached
         summaries.push(cached.summary)
         continue
       }
       try {
         const summary = publicRun(await this.loadFile(entry), false)
-        next[runId] = { mtimeMs: entry.mtimeMs, size: entry.size, summary }
+        next[runId] = { filePath: entry.filePath, mtimeMs: entry.mtimeMs, size: entry.size, summary }
         summaries.push(summary)
       } catch (error) {
         if (error?.code === 'HARNESS_LAB_ZSTD_UNAVAILABLE') unsupportedCompression = true

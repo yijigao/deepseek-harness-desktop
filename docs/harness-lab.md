@@ -1,4 +1,8 @@
-# Harness Lab MVP
+# Harness Lab MVP（已退役 / 历史设计）
+
+自 2026-09-11 起，Desktop 移除 Harness Lab 的按钮、窗口、preload 接口、IPC、服务初始化和演示启动入口。发布包不再包含 Lab 前端、专用会话服务或合成演示数据。历史前端样例与专用会话服务仅保留在源码中用于参考和离线测试；共享 `lib/trajectory` 仍被模型资源统计使用，不随本模块删除。此改动不清理用户会话、报告、基线或缓存。
+
+以下记录的是退役前的设计，并非当前 Desktop 功能；旧演示命令不再可用。
 
 Harness Lab is a local, read-only trajectory inspector. It compares two DeepSeek Harness runs without replaying them and without sending session data to an LLM or remote service.
 

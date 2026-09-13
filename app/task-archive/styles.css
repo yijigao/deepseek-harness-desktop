@@ -1,0 +1,19 @@
+:root { color-scheme: dark; font-family: "Microsoft YaHei", system-ui, sans-serif; background:#07101d; color:#e8eefb; }
+* { box-sizing:border-box; }
+body { margin:0; overflow-x:hidden; background:linear-gradient(135deg,#07101d,#0b1728); }
+main { max-width:1100px; min-width:0; margin:auto; padding:28px; }
+header { border-bottom:1px solid #233751; margin-bottom:20px; }
+h1,h2,h3,p { margin-top:0; overflow-wrap:anywhere; } h1 { margin-bottom:8px; } h2 { font-size:18px; } h3 { font-size:14px; margin:14px 0 6px; }
+.eyebrow { color:#78b7ff; font-size:12px; letter-spacing:.12em; }
+section { min-width:0; margin:16px 0; padding:18px; border:1px solid #233751; border-radius:10px; background:#0a1525cc; }
+label { display:grid; min-width:0; gap:6px; margin:10px 0; font-size:13px; color:#b8c9e2; }
+input,textarea,select { width:100%; max-width:100%; min-width:0; color:#eef5ff; background:#07101d; border:1px solid #34506f; border-radius:6px; padding:8px; font:inherit; }
+button { max-width:100%; color:#06101e; background:#78b7ff; border:0; border-radius:6px; padding:8px 12px; font:inherit; font-weight:600; cursor:pointer; }
+button.secondary { background:#1b2f49; color:#e8eefb; } button:disabled { opacity:.55; cursor:not-allowed; }
+.actions,.section-head { display:flex; min-width:0; gap:10px; align-items:center; flex-wrap:wrap; } .section-head { justify-content:space-between; }
+.muted { color:#9aabc2; font-size:13px; overflow-wrap:anywhere; } .stats { display:flex; gap:10px; flex-wrap:wrap; } .stat { padding:8px 12px; border-radius:6px; background:#12243a; color:#c8d8ec; } .stat.alert { background:#55272b; color:#ffd6d6; }
+.items { display:grid; min-width:0; gap:8px; } .item { width:100%; min-width:0; text-align:left; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,130px) minmax(0,110px); gap:8px; overflow-wrap:anywhere; background:#102139; color:#e8eefb; } .item[data-priority="true"] { border-left:4px solid #efaa58; } .item small { min-width:0; color:#9aabc2; overflow-wrap:anywhere; }
+pre { max-width:100%; margin:0; white-space:pre-wrap; overflow-wrap:anywhere; max-height:260px; overflow:auto; background:#050b14; padding:10px; border-radius:6px; color:#d8e6fa; }
+#artifact-image { display:block; max-width:100%; width:auto; height:auto; max-height:420px; object-fit:contain; margin-top:8px; border-radius:6px; background:#050b14; }
+#feedback { min-height:1.2em; color:#b9d8ff; overflow-wrap:anywhere; } details { min-width:0; margin:10px 0; }
+@media (max-width:620px) { main { padding:14px; } .item { grid-template-columns:minmax(0,1fr); } }

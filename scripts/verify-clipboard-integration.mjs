@@ -9,6 +9,7 @@ export function verifyRuntime(runtimeRoot) {
   const target = bundles.find((name) => {
     const source = readFileSync(path.join(assets, name), 'utf8')
     return source.includes('ccDesktop') && source.includes('writeClipboard')
+      || source.includes('dshHost') && source.includes('clipboard') && source.includes('writeText')
   })
   if (!target) throw new Error('compiled frontend does not contain the native clipboard host integration')
   return path.join(assets, target)

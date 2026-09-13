@@ -2,7 +2,7 @@
   <img src="assets/deepseek-whale-225.png" width="88" alt="DeepSeek Harness Desktop logo">
   <h1>DeepSeek Harness Desktop</h1>
   <p><strong>把 DeepSeek Harness 变成一个更适合长期使用的 Windows AI Agent 工作台。</strong></p>
-  <p>多 Provider · Harness Lab · 模型资源中心 · 原生会话管理 · 本地桌面体验</p>
+  <p>多 Provider · 模型资源中心 · 原生会话管理 · 本地桌面体验</p>
   <p><a href="https://github.com/yijigao/deepseek-harness-desktop/releases/download/v2.2.0/DeepSeek-Setup-2.2.0.exe"><strong>下载 v2.2.0 安装版</strong></a> · <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/tag/v2.2.0">版本说明</a></p>
   <p>
     <a href="https://github.com/yijigao/deepseek-harness-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/yijigao/deepseek-harness-desktop?label=release" alt="Latest release"></a>
@@ -13,15 +13,14 @@
   </p>
 </div>
 
-DeepSeek Harness Desktop 是由社区维护的 Windows AI Agent 工作台。它保留 Harness 原生的工作区、模型、插件、Agent 预设和权限体系，并补齐长期桌面使用所需的运行可靠性、模型接入、资源可见性、Agent 执行诊断和原生交互；它并非只把 `dsh web` 放进 Electron 窗口。
+DeepSeek Harness Desktop 是由社区维护的 Windows AI Agent 工作台。它保留 Harness 原生的工作区、模型、插件、Agent 预设和权限体系，并补齐长期桌面使用所需的运行可靠性、模型接入、资源可见性和原生交互；它并非只把 `dsh web` 放进 Electron 窗口。
 
 ## 为什么它不只是一个桌面壳
 
 - **多 Provider / OpenAI-compatible**：复用 Harness Provider 架构，提供 OpenAI-compatible Provider 配置能力，以及 ChatGPT subscription OAuth 路由和第三方 Provider 配置示例。
-- **Harness Lab**：在本地分析 Agent 执行轨迹，包括工具调用、重试、失败恢复、重复循环、文件操作和执行路径；它是任务诊断工具，不是简单的模型排行榜。
 - **模型资源中心**：Provider 支持时显示真实账户用量、余额和重置时间；不支持时明确降级为本地 Token 观察，不伪造 Provider 数据。
 - **原生桌面能力**：提供会话置顶、原生剪贴板、独立窗口和本地运行时管理，并尽量在数据层或源码层集成，避免依赖脆弱的 DOM hack。
-- **可验证、可回滚升级（当前 main）**：候选构建先隔离执行启动、Renderer/UI 与截图验证；适用时运行已认证的模型网络探测，通过后再原子切换，失败则回滚，并对迁移执行版本门控和备份。
+- **受控成品包升级**：旧源码更新入口已退役。新流程校验固定发布包，区分桌面、引擎和数据格式更新；运行中的任务不会被自动停止，启动后的失败不会触发不安全降级。线上自动下载渠道尚未配置，详见[发布流程](docs/release-updates.md)。
 
 > [!TIP]
 > 如果这个项目让 DeepSeek Harness 更好用，欢迎点一个 **Star**，帮助更多人发现它。
@@ -33,7 +32,6 @@ DeepSeek Harness Desktop 是由社区维护的 Windows AI Agent 工作台。它�
 
 - **原生会话置顶**：在会话菜单中置顶或取消置顶，结果持久保存。排序发生在 React 数据层，不使用 DOM 轮询、观察器或后台扫描。
 - **模型资源中心**：顶部常驻显示当前模型，并统一展示 ChatGPT 订阅配额、DeepSeek API 余额和本机 Token 用量；服务不可用时自动降级，不阻塞会话。
-- **Harness Lab**：在本机比较两次任务的执行轨迹，查看工具调用、重试、失败恢复、重复循环与文件变动，而不是把不同目标的任务当作模型排行榜。
 - **完整桌面体验**：独立窗口、原生窗口控制、共享现有 Harness 配置和会话，关闭应用时同步回收本地服务。
 
 ![DeepSeek Harness Desktop 中运行 GPT-6 Astra 长任务会话](assets/screenshots/workspace.png)
@@ -59,23 +57,6 @@ DeepSeek Harness Desktop 是由社区维护的 Windows AI Agent 工作台。它�
 ![模型资源中心展示 ChatGPT 订阅配额、DeepSeek API 余额和本机 Token 用量](assets/screenshots/model-resources.png)
 
 截图中的模型、配额和余额来自当前部署示例，不代表固定的产品限制或默认账户数据。
-
-## Harness Lab
-
-![Harness Lab 执行轨迹对比](assets/screenshots/harness-lab-compare.png)
-
-Harness Lab 用来回答“这次任务是怎样完成的，以及哪里值得改进”，而不是笼统判断两个不同目标的任务谁更好。选择两次有关联的运行后，可以比较：
-
-- 步骤、工具调用、重试、失败和耗时；
-- 重复工具循环与失败后的恢复路径；
-- 不必要的文件读取、写入与搜索路径；
-- 测试执行时机和执行路线差异。
-
-分析在本机完成。渲染层只接收净化后的指标、工具类别、通用摘要和文件 basename，不接收原始 Prompt、凭据或绝对路径。
-
-> 截图使用内置的合成演示数据，仅用于展示比较流程，不是模型性能 benchmark，也不代表性能提升。
-
-> Schema-derived, synthetic-tested, and smoke-validated against a locally generated minimal DeepSeek Harness session.
 
 ## 设置与兼容性
 
@@ -106,28 +87,29 @@ cd app
 npm test
 ```
 
-Harness Lab 合成数据演示：
-
-```powershell
-cd app
-npm start -- --demo-harness-lab
-```
-
 开发模式需要预先准备 `staging/payload/runtime` 和 `staging/payload/node.exe`，它们来自上游 DeepSeek Harness，不提交到本仓库。
+
+Harness Lab 已从当前源码的日常界面、启动流程和发布包移除；不会删除历史会话，也不影响模型资源用量统计。旧版截图可能仍显示该按钮，已发布的旧安装包不会随源码自动变化。轨迹解析器保留用于用量统计和离线回归测试，历史设计见 [归档说明](docs/harness-lab.md)。
+
+轨迹格式的验证范围（不代表业务结果质量已验收）：
+
+> Schema-derived, synthetic-tested, and smoke-validated against a locally generated minimal DeepSeek Harness session.
 
 ## 构建
 
-准备上游 DeepSeek Harness 源码及其依赖后运行。Desktop 使用的 Harness 分支直接在 `packages/client/ui-primitives/src/clipboard.ts` 集成原生剪贴板 host；更新脚本会合并官方 `origin/master`，构建后只校验该能力，不再修改压缩后的前端 bundle：
+使用固定工具链和已验证的引擎运行时作为构建输入。新的打包入口不合并上游源码，也不读取旧 staging/payload：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\sync-update.ps1 `
-  -Checkout ..\deepseek-harness `
-  -BuildOnly
+$env:DSH_RELEASE_RUNTIME = '<已验证的运行时目录>'
+$env:DSH_RELEASE_NODE = '<固定版本的 node.exe>'
+cd app
+npm ci
+npm run dist
 ```
 
-安装版与便携版生成在 `dist/`。构建流程会完成官方源码同步、运行时部署、依赖补齐、旧功能兼容处理、源码集成校验、冒烟测试和 Electron 打包，不依赖固定用户名或绝对路径。
+安装版与便携版生成在 `release-artifacts/<releaseId>/`，不覆盖已封装的旧发布。固定引擎提交、可重放源码补丁及发布约定保存在 `maintenance/`。全新源码到分发运行时的完整复现仍待验证，不把现有运行时打包等同于源码构建完成。
 
-安装更新时，候选构建会先在独立目录完成启动、Renderer/UI 和截图验证；存在适用凭据时还会执行模型网络探测。验证通过后才切换安装目录，激活失败则恢复上一版本；需要迁移的本地数据按版本门控并先行备份。
+安装需要当前包与新包的可信清单 SHA256。候选先隔离验证，Desktop 未关闭则拒绝切换；跨会话格式更新不走普通安装路径。具体封装、准备、安装命令及回退边界见[发布流程](docs/release-updates.md)。
 
 ## 隐私与安全
 

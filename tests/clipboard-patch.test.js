@@ -4,6 +4,26 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
+const vm = require('node:vm')
+
+test('generic and legacy preload clipboard capabilities use the same bounded IPC', async () => {
+  const exposed = {}
+  const calls = []
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'app', 'preload.js'), 'utf8')
+  vm.runInNewContext(preload, {
+    require(name) {
+      assert.equal(name, 'electron')
+      return {
+        contextBridge: { exposeInMainWorld: (key, value) => { exposed[key] = value } },
+        ipcRenderer: { invoke: async (...args) => { calls.push(args); return true } },
+      }
+    },
+  })
+  assert.equal(await exposed.dshHost.clipboard.writeText('中文'), true)
+  assert.equal(await exposed.ccDesktop.writeClipboard('legacy'), true)
+  assert.deepEqual(calls, [['cc:write-clipboard', '中文'], ['cc:write-clipboard', 'legacy']])
+  assert.deepEqual(Object.keys(exposed.dshHost), ['clipboard'])
+})
 
 test('clipboard bundle patch prefers the desktop bridge and keeps fallbacks', async () => {
   const module = await import('../scripts/patch-clipboard.mjs')
@@ -33,7 +53,7 @@ test('desktop clipboard bridge is trusted and bounded', () => {
 })
 
 test('runtime builds verify source integration instead of patching generated bundles', () => {
-  const sync = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'sync-update.ps1'), 'utf8')
+  const sync = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'qualify-runtime.mjs'), 'utf8')
   assert.match(sync, /verify-clipboard-integration\.mjs/)
   assert.doesNotMatch(sync, /& \$node .*patch-clipboard\.mjs/)
 })

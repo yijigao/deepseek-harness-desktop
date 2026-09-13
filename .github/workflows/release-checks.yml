@@ -1,0 +1,23 @@
+name: Release safety checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci --prefix app
+      - run: npm test --prefix app
+      - run: node scripts/secret-scan.mjs
+      - name: Reconstruct pinned engine source in isolation
+        shell: pwsh
+        run: node scripts/prepare-pinned-source.mjs https://github.com/deepseek-ai/deepseek-harness.git "$env:RUNNER_TEMP/harness-pinned-source"

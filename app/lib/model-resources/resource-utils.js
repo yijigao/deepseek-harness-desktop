@@ -89,6 +89,31 @@ function normalizeCodexUsage(payload, fetchedAt = new Date().toISOString()) {
   }
 }
 
+function normalizeDeepSeekBalance(payload, fetchedAt = new Date().toISOString()) {
+  const items = Array.isArray(payload?.balance_infos) ? payload.balance_infos : []
+  const balances = items.slice(0, 8).map((item) => ({
+    currency: safeText(item?.currency, null, 12),
+    total: finiteNumber(item?.total_balance),
+    granted: finiteNumber(item?.granted_balance),
+    toppedUp: finiteNumber(item?.topped_up_balance),
+  })).filter((item) => item.currency && item.total != null)
+  return {
+    provider: 'deepseek-official', label: 'DeepSeek API', kind: 'balance',
+    status: balances.length ? 'available' : 'unavailable', available: payload?.is_available === true,
+    balances, fetchedAt, message: balances.length ? null : 'DeepSeek 未返回可识别的余额数据。',
+  }
+}
+
+function sanitizeResource(resource) {
+  if (!resource || resource.provider !== 'deepseek-official') return null
+  return normalizeDeepSeekBalance({
+    is_available: resource.available,
+    balance_infos: Array.isArray(resource.balances) ? resource.balances.map((item) => ({
+      currency: item.currency, total_balance: item.total, granted_balance: item.granted, topped_up_balance: item.toppedUp,
+    })) : [],
+  }, safeText(resource.fetchedAt, null, 40) || new Date().toISOString())
+}
+
 function emptyUsageBucket() {
   return { requests: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 }
@@ -131,11 +156,16 @@ function publicSnapshot(value, fallbackRoute = {}) {
       fetchedAt: safeText(quota.fetchedAt, null, 40),
       message: safeText(quota.message, null, 160),
     },
+    resources: Array.isArray(value?.resources) ? value.resources.map(sanitizeResource).filter(Boolean) : [],
     localUsage: {
       today: sanitizeLocalUsage(value?.localUsage?.today),
       month: sanitizeLocalUsage(value?.localUsage?.month),
       currentSession: sanitizeLocalUsage(value?.localUsage?.currentSession),
       scannedSessions: Math.max(0, finiteNumber(value?.localUsage?.scannedSessions, 0)),
+      skippedSessions: Math.max(0, finiteNumber(value?.localUsage?.skippedSessions, 0)),
+      cachedSessions: Math.max(0, finiteNumber(value?.localUsage?.cachedSessions, 0)),
+      incomplete: Boolean(value?.localUsage?.incomplete),
+      currentSessionSource: 'most-recent-session',
       scope: 'this-device',
     },
     updatedAt: safeText(value?.updatedAt, null, 40),
@@ -151,6 +181,7 @@ module.exports = {
   clampPercent,
   emptyUsageBucket,
   normalizeCodexUsage,
+  normalizeDeepSeekBalance,
   parseDefaultRoute,
   publicSnapshot,
   safeText,

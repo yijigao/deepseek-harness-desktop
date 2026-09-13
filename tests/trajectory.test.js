@@ -102,6 +102,8 @@ test('unknown and malformed identifier fields cannot export arbitrary text', () 
     { type: 'tool/call', seq: 1, time: 1760000000200, data: { callId: 'synthetic-call', name: 'C:/synthetic/private-tool', arguments: {} } },
     { type: 'request/header', seq: 2, time: 1760000000300, data: { header: { config: { model: 'C:/synthetic/private-model' } } } },
   ]
+  assert.throws(() => parseRun(`${records.map(JSON.stringify).join('\n')}\n`), /Unsupported session format version/)
+  delete records[0].version
   const run = parseRun(`${records.map(JSON.stringify).join('\n')}\n`)
   const exported = publicRun(run)
   const serialized = JSON.stringify(exported)

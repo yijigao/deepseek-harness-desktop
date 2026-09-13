@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>任务档案与批次验收</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="renderer.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">TASK ARCHIVE</p><h1>任务档案与批次验收</h1><p>绑定一个原始清单；档案只保存任务定位、映射、会话引用和验收记录，不复制进度。</p></header>
+    <section class="archive-picker"><div class="section-head"><label>已有档案<select id="archives"><option value="">加载中…</option></select></label><div class="actions"><button id="open" class="secondary">打开/刷新</button></div></div><p class="muted">打开已绑定档案会读取当前原始清单并重新派生验收状态，不会新建或迁移清单。</p></section>
+    <section class="metadata">
+      <label>任务标题<input id="title" maxlength="240" placeholder="选择清单后绑定"></label>
+      <label>目标<textarea id="goal" maxlength="4000" rows="2"></textarea></label>
+      <label>约束<textarea id="constraints" maxlength="8000" rows="2"></textarea></label>
+      <details><summary>会话引用（默认折叠，仅保存 session ID）</summary><label>Session ID（每行一个）<textarea id="sessions" rows="3" placeholder="不接受 token、链接或路径"></textarea></label></details>
+      <details><summary>字段与状态映射（可选；绑定后固定归档）</summary><label>映射 JSON<textarea id="adapter" rows="4" placeholder='{"fields":{"itemId":"id","status":"state"},"statusMap":{"success":"succeeded"}}'></textarea></label></details>
+      <div class="actions"><button id="bind">选择原始清单并绑定</button><button id="save" class="secondary" disabled>保存任务说明</button><button id="retry" class="secondary" disabled>生成失败重跑计划</button></div>
+      <p id="feedback" role="status" aria-live="polite"></p>
+    </section>
+    <section id="summary" hidden><div class="section-head"><h2 id="task-name"></h2><span id="source" class="muted"></span></div><div id="stats" class="stats"></div></section>
+    <section id="items-section" hidden><div class="section-head"><h2>清单条目</h2><span class="muted">异常项优先；验收会核对当前清单和当前产物。</span></div><div id="items" class="items" aria-live="polite"></div></section>
+    <section id="detail-section" hidden><div class="section-head"><h2 id="detail-title">条目详情</h2><button id="accept" disabled>锁定验收</button></div><p id="detail-status"></p><h3>产物预览</h3><pre id="artifact"></pre><img id="artifact-image" hidden alt="产物安全预览"><h3>证据</h3><pre id="evidence"></pre><h3>差异</h3><pre id="diff"></pre></section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "appVersion": "2.2.0",
+  "dshRepo": "deepseek-ai/deepseek-harness",
+  "dshBranch": "dsh-v0.1.3-alpha.2",
+  "dshVersion": "0.1.3-alpha.2",
+  "dshCommit": "82a5fd61a7cf5c293cec4bdff68f455398d685e9",
+  "dshCommitShort": "82a5fd61a7",
+  "desktopReleaseId": "desktop-2.2.0-alpha2-r9",
+  "localModifications": true
+}

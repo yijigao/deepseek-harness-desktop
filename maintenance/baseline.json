@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "releaseId": "desktop-2.2.0-alpha2-r9",
+  "engineVersion": "0.1.3-alpha.2",
+  "engineCommit": "82a5fd61a7cf5c293cec4bdff68f455398d685e9",
+  "patchsetSha256": "3c08a08037f4f1e31d2aa12458222b5c56401cfbb04b2cea8b6d7f7d7ba4250f",
+  "protocol": 1,
+  "sessionReadVersions": [0, 2],
+  "sessionWriteVersion": 2,
+  "toolchain": { "node": "24.18.0", "pnpm": "11.7.0", "electron": "43.4.0", "electronBuilder": "26.15.3" },
+  "capabilities": ["legacy-descriptor-read", "pressure-retry-deferral", "resumed-compaction-route", "codex-service-tier", "websocket-transport-classification", "retry-malformed-tool-call", "host-clipboard", "missing-model-catalog-supplement", "canonical-credential-resource-probe", "desktop-session-pins", "loopback-command-retry", "scope-owned-model-selection", "local-rpc-lifecycle-diagnostics"],
+  "retiredPatches": ["legacy-pi-ai-oauth-bundle-injection", "legacy-goal-pause-hotfix", "legacy-token-meter-reference-tolerance"]
+}

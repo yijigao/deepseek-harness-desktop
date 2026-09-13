@@ -1,0 +1,142 @@
+# Derived from the user's daily-lite preset; existing presets remain unchanged.
+# This policy never selects or replaces a model. It matches the current route.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    prefix: |-
+      You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
+
+      Optimize execution latency without sacrificing correctness:
+      - Batch homogeneous file and data operations into one deterministic tool invocation.
+      - Inspect unchanged sources once and reuse results instead of rescanning.
+      - Reproduce real failures once and establish the root cause before editing.
+      - Make the smallest corrective change and run one focused verification pass.
+      - Use specialized domain skills only when the task clearly needs them.
+      - For large batches, keep a small manifest so work can resume in a fresh session.
+      - Stop once the requested acceptance criteria pass.
+
+      商品成本、售价、条码与货号查询先读取 shangpin-db 技能，优先一次使用其 product_cost_price.py 只读快速查询，复用已经返回的身份、规格、来源与价格证据。仅在确有缺口时追加有界、针对性的查询；不要机械重复检索、全表导出或反复分页回读。保留同码歧义和 NULL，不把历史平台快照称为实时售价，不猜测匹配或价格。商品数据和平台写入仍须遵守用户本次授权；预算提醒不是省略必要验证的理由。
+
+- id: task-stream-policy
+  name: '@deepseek-ai/dsh-llm-pi-ai/task-policy'
+  config:
+    provider: antigravity-pro
+    model: gemini-3.8-flash-high
+    policy:
+      id: product-quick
+      softThresholdsMs: [45000, 90000, 150000]
+      hardSilenceMs: 180000
+      retryTotalMs: 600000
+
+- id: product-output-budget
+  name: '@deepseek-ai/dsh-repeat-tool-reminder'
+  config:
+    # The host retains legacy exact-repeat reminders; this instance adds only
+    # the preset-scoped output budget. Shell tools are not declared read-only.
+    exclude: ['*']
+    toolOutputBudget:
+      thresholdChars: 120000
+      maxNoticesPerTurn: 1
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+- id: command-goal
+  name: '@deepseek-ai/dsh-command-goal'
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: |
+              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Plan implementation instead of executing it. Explore with non-mutating reads first, resolve discoverable facts by inspection, ask only for user-owned choices, and submit one concise decision-complete plan through exit_plan_mode.
+
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+      config:
+        thresholdRatio: 0.50
+        retainRatio: 0.25
+        modelPolicies:
+          - provider: openai-codex
+            model: gpt-5.6-luna
+            thresholdRatio: 0.20
+            retainRatio: 0.08
+          - provider: openai-codex
+            model: gpt-5.6-terra
+            thresholdRatio: 0.20
+            retainRatio: 0.08
+          - provider: openai-codex
+            model: gpt-5.6-sol
+            thresholdRatio: 0.20
+            retainRatio: 0.08
+          - provider: openai-codex
+            model: gpt-6-astra
+            thresholdRatio: 0.20
+            retainRatio: 0.08
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: true
+    searchTimeoutMs: 60000

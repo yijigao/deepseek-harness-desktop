@@ -16,23 +16,22 @@
   },
   "scripts": {
     "start": "electron .",
-    "start:harness-lab-demo": "electron . --demo-harness-lab",
     "start:model-settings-demo": "electron . --demo-model-settings",
     "test": "node --test ../tests/*.test.js",
     "secret-scan": "node ../scripts/secret-scan.mjs",
     "fixtures:harness-lab": "node ../scripts/generate-harness-lab-fixtures.mjs",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win --config ../electron-builder.release.cjs"
   },
   "devDependencies": {
-    "electron": "^43.4.0",
-    "electron-builder": "^26.15.3"
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3",
+    "unzipper": "0.12.5"
   },
   "build": {
     "appId": "com.deepseek.desktop",
     "productName": "DeepSeek",
     "compression": "maximum",
     "asar": true,
-    "asarUnpack": ["demo/**/*"],
     "npmRebuild": false,
     "directories": {
       "output": "../dist",
@@ -43,10 +42,10 @@
       "preload.js",
       "titlebar.js",
       "themes/**/*",
-      "harness-lab/**/*",
       "model-settings/**/*",
+      "task-archive/**/*",
       "lib/**/*",
-      "demo/**/*",
+      "!lib/harness-lab/**/*",
       "fix-junctions.js",
       "package.json"
     ],

@@ -77,6 +77,20 @@ function placeholderQuota(message) {
   return node
 }
 
+function balanceCard(resource, balance) {
+  const node = element('article', 'quota-card balance-card')
+  const currency = text(balance?.currency, 'CNY')
+  const total = number(balance?.total)
+  const granted = number(balance?.granted)
+  const toppedUp = number(balance?.toppedUp)
+  node.append(
+    element('span', 'label', `${text(resource?.label, 'DeepSeek API')} · ${currency}`),
+    element('strong', '', total == null ? '暂不可读' : `${currency} ${total.toFixed(2)}`),
+    element('p', 'small muted', `赠送 ${granted == null ? '—' : granted.toFixed(2)} · 充值 ${toppedUp == null ? '—' : toppedUp.toFixed(2)}`),
+  )
+  return node
+}
+
 function usageCard(label, value) {
   const node = element('article', 'usage-card')
   node.append(
@@ -109,6 +123,12 @@ function renderResources(snapshot) {
     card.append(element('span', 'label', '扩展积分'), element('strong', '', value), element('p', 'small muted', '账户级资源，不归属于单一模型'))
     cards.push(card)
   }
+  const providerResources = Array.isArray(snapshot.resources) ? snapshot.resources : []
+  for (const resource of providerResources) {
+    const balances = Array.isArray(resource?.balances) ? resource.balances : []
+    if (resource?.kind === 'balance' && balances.length) cards.push(...balances.map((balance) => balanceCard(resource, balance)))
+    else if (resource?.kind === 'balance') cards.push(placeholderQuota(text(resource?.message, `${text(resource?.label, 'API')} 余额暂不可读。`)))
+  }
   if (!cards.length) cards.push(placeholderQuota(text(snapshot.quota?.message, '后台额度服务暂不可用。')))
   quotaGrid.replaceChildren(...cards)
   document.getElementById('quota-message').textContent = text(snapshot.quota?.message)
@@ -116,8 +136,9 @@ function renderResources(snapshot) {
   const current = snapshot.localUsage?.currentSession || {}
   const today = snapshot.localUsage?.today || {}
   const month = snapshot.localUsage?.month || {}
-  localUsage.replaceChildren(usageCard('当前会话', current), usageCard('今天', today), usageCard('本月', month))
-  document.getElementById('usage-scope').textContent = `已扫描 ${Math.max(0, number(snapshot.localUsage?.scannedSessions, 0))} 个近期会话`
+  localUsage.replaceChildren(usageCard('最近更新会话', current), usageCard('今天', today), usageCard('本月', month))
+  document.getElementById('usage-scope').textContent = `已统计 ${Math.max(0, number(snapshot.localUsage?.scannedSessions, 0))} 个会话；按用量事件时间归属`
+    + (snapshot.localUsage?.incomplete ? `；统计不完整（跳过 ${number(snapshot.localUsage?.skippedSessions, 0)} 个，或后台读取超时），不可用作完整账单` : '')
 
   const remaining = number(windows[0]?.remainingPercent)
   const quotaMessage = text(snapshot.quota?.message)

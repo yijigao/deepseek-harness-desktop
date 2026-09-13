@@ -33,6 +33,32 @@ const END = '/* DSH_DESKTOP_SESSION_PINS_END */'
 const PERSISTENCE = '/* DSH_DESKTOP_SESSION_PINS_PERSISTENCE */'
 
 function replaceOnce(source, needle, replacement, label) {
+  if (!source.includes(needle) && label === 'session row props') {
+    needle = needle.replace('onArchive, drag', 'onArchive, onReveal, drag')
+    replacement = replacement.replace('onArchive, pinned', 'onArchive, onReveal, pinned')
+  }
+  if (!source.includes(needle) && label === 'pin icon') {
+    needle = needle.replace('onArchive, pinned', 'onArchive, onReveal, pinned')
+    replacement = replacement.replace('onArchive, pinned', 'onArchive, onReveal, pinned')
+  }
+  if (!source.includes(needle) && label === 'tree props') {
+    const adapt = value => value.replace('archivedSessionIds, onRenameRequest', 'archivedSessionIds, workspaceReady, onRenameRequest')
+      .replace('home, t })', 'home, t, revealSessionId, onSessionRevealed })')
+    needle = adapt(needle)
+    replacement = adapt(replacement)
+  }
+  if (!source.includes(needle) && label === 'flat props') {
+    needle = needle.replace('setSessionOrder, t })', 'setSessionOrder, revealSessionId, onSessionRevealed, t })')
+    replacement = replacement.replace('setSessionOrder, t })', 'setSessionOrder, revealSessionId, onSessionRevealed, t })')
+  }
+  if (!source.includes(needle) && label === 'tree row pin props') {
+    needle = needle.replace('drag:', 'onReveal:')
+    replacement = replacement.replace('drag:', 'onReveal:')
+  }
+  if (!source.includes(needle) && label === 'flat row pin props') {
+    needle = needle.replace('flat: true,', 'onReveal:')
+    replacement = replacement.replace('flat: true,', 'onReveal:')
+  }
   const first = source.indexOf(needle)
   if (first === -1 || source.indexOf(needle, first + needle.length) !== -1) {
     throw new Error(`session-pin patch anchor missing or ambiguous: ${label}`)

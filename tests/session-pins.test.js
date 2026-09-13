@@ -6,6 +6,23 @@ const { pathToFileURL } = require('node:url')
 
 const projectRoot = path.resolve(__dirname, '..')
 
+test('alpha.2 session pin patch preserves reveal navigation and is idempotent', async (t) => {
+  const candidate = process.env.DSH_ALPHA2_WORKSPACE_CLIENT
+  if (!candidate) return t.skip('set DSH_ALPHA2_WORKSPACE_CLIENT to the unpatched alpha.2 client')
+  const module = await import(pathToFileURL(path.join(projectRoot, 'scripts', 'patch-session-pins.mjs')).href)
+  const original = fs.readFileSync(candidate, 'utf8')
+  assert.doesNotMatch(original, /DSH_DESKTOP_SESSION_PINS_START/)
+  const result = module.patchWorkspaceClient(original)
+  assert.equal(result.changed, true)
+  for (const identifier of ['onReveal', 'workspaceReady', 'revealSessionId', 'onSessionRevealed']) {
+    const pattern = new RegExp(`\\b${identifier}\\b`, 'g')
+    assert.equal((result.source.match(pattern) || []).length, (original.match(pattern) || []).length, identifier)
+  }
+  assert.match(result.source, /onArchive, onReveal, pinned, onTogglePinned/)
+  assert.match(result.source, /DSH_DESKTOP_SESSION_PINS_PERSISTENCE/)
+  assert.deepEqual(module.patchWorkspaceClient(result.source), { source: result.source, changed: false })
+})
+
 test('pin ordering keeps the active blank first and preserves stable order', async () => {
   const module = await import(pathToFileURL(path.join(projectRoot, 'scripts', 'patch-session-pins.mjs')).href)
   const rows = [

@@ -7,7 +7,7 @@
  * Claude Code-styled window on top of it. Closing the window tears the
  * server down; a crash shows the log path in a dialog.
  */
-const { app, BrowserWindow, Menu, ipcMain, shell, dialog, clipboard, nativeImage, net: electronNet } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog, clipboard, nativeImage, net: electronNet, crashReporter } = require('electron')
 const { spawn, spawnSync } = require('node:child_process')
 const path = require('node:path')
 const fs = require('node:fs')
@@ -15,22 +15,56 @@ const os = require('node:os')
 const net = require('node:net')
 const http = require('node:http')
 const { pathToFileURL } = require('node:url')
-const { HarnessLabSessionService } = require('./lib/harness-lab/session-service')
 const { ModelResourceService } = require('./lib/model-resources/service')
+const { EngineRecovery } = require('./lib/engine-recovery')
+const { nativeCredentialIntegration } = require('./lib/credential-integration')
+const { titlebarLogoDataUrl } = require('./lib/titlebar-logo')
+const { attachRpcLifecycleLogging } = require('./lib/rpc-lifecycle')
+const taskArchive = require('./lib/task-archive/service')
+const { resolveWorkspacePath } = require('./lib/workspace-path')
+const { isStrictlyWithin, requireTemporaryExitDiagnostics } = require('./lib/exit-diagnostics')
+const { JUNCTION_REPAIR_TIMEOUT_MS, ENGINE_READY_TIMEOUT_MS, VERIFY_RENDER_DELAY_MS, SCREENSHOT_RENDER_DELAY_MS, RECOVERY_PRE_KILL_DELAY_MS, RECOVERY_POST_RESTART_DELAY_MS } = require('./lib/verification-contract')
 
 const PRODUCT = 'DeepSeek'
 const APP_ID = 'com.deepseek.desktop'
 const WINDOW_BG = '#050a12'
 const LOG_PATH = path.join(os.tmpdir(), 'deepseek-desktop.log')
 const MAX_PINNED_SESSIONS = 50
+const EXIT_DIAGNOSTICS = process.argv.includes('--diagnose-verify-exit')
 
 let mainWindow = null
-let harnessLabWindow = null
 let modelSettingsWindow = null
-let harnessLabService = null
+let taskArchiveWindow = null
 let modelResourceService = null
 let serverChild = null
 let stopping = false
+let serverPort = null
+let serverReadyUrl = null
+let mainRpcLifecycle = null
+let recoveryPrompt = false
+let exitDiagnostics = null
+let providerProbeState = 'not-started'
+const engineRecovery = new EngineRecovery({
+  publish: (state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('cc:engine-state', state)
+  },
+  restart: async () => {
+    if (stopping || !mainWindow || mainWindow.isDestroyed()) return false
+    if (serverChild && !serverReadyUrl) return false
+    const previous = new URL(mainWindow.webContents.getURL())
+    const authenticated = new URL(serverChild ? serverReadyUrl : await startServer(serverPort))
+    if (stopping || !mainWindow || mainWindow.isDestroyed()) return false
+    // Keep the selected conversation, but use only the new server's authentication.
+    authenticated.pathname = previous.pathname
+    authenticated.hash = previous.hash
+    for (const [key, value] of previous.searchParams) {
+      if (key !== 'token' && !authenticated.searchParams.has(key)) authenticated.searchParams.append(key, value)
+    }
+    attachMainRpcLifecycle(authenticated.href)
+    await mainWindow.loadURL(authenticated.href)
+    return true
+  },
+})
 let cachedPatchStatus = { ok: null, detail: '正在后台检测 OAuth 适配状态。' }
 
 function normalizePinnedSessionIds(value) {
@@ -54,13 +88,41 @@ function writeSessionPins(value) {
   fs.renameSync(temporary, target)
   return pins
 }
-const HARNESS_LAB_DEMO = process.env.HARNESS_LAB_DEMO === '1' || process.argv.includes('--demo-harness-lab')
 const MODEL_SETTINGS_DEMO = process.argv.includes('--demo-model-settings') || process.argv.includes('--verify-model-settings')
 
 function log(line) {
   const text = `[${new Date().toISOString()}] ${line}\n`
   try { fs.appendFileSync(LOG_PATH, text) } catch {}
   if (!app.isPackaged) process.stdout.write(text)
+}
+
+function recordExitDiagnostic(phase, detail = {}) {
+  if (!exitDiagnostics) return
+  const entry = {
+    phase, at: new Date().toISOString(), pid: process.pid,
+    serverChild: Boolean(serverChild), providerProbe: providerProbeState,
+    resources: modelResourceService?.getLifecycleState?.() ?? null,
+    ...detail,
+  }
+  exitDiagnostics.events.push(entry)
+  try { fs.appendFileSync(exitDiagnostics.timelinePath, `${JSON.stringify(entry)}\n`, { encoding: 'utf8', mode: 0o600 }) } catch {}
+  console.log(`EXIT-DIAGNOSTIC ${JSON.stringify(entry)}`)
+}
+
+function configureExitDiagnostics() {
+  if (!process.argv.includes('--verify')) throw new Error('Exit diagnostics requires --verify')
+  const isolated = requireTemporaryExitDiagnostics({ app, env: process.env, tempDir: os.tmpdir(), dshHome: dshHomePath() })
+  fs.mkdirSync(isolated.crashDumps, { recursive: true, mode: 0o700 })
+  app.setPath('crashDumps', isolated.crashDumps)
+  // No submit URL plus uploadToServer=false keeps the diagnostic strictly local.
+  crashReporter.start({ productName: 'DeepSeek Exit Diagnostics', companyName: 'DeepSeek Harness Desktop', submitURL: '', uploadToServer: false, compress: false })
+  return { ...isolated, events: [] }
+}
+
+if (EXIT_DIAGNOSTICS) {
+  exitDiagnostics = configureExitDiagnostics()
+  recordExitDiagnostic('diagnostics-configured', { uploadsDisabled: true, crashDumpsLocal: true })
+  process.on('exit', () => recordExitDiagnostic('process-exit', { exitCode: process.exitCode ?? 0 }))
 }
 
 function screenshotTarget(shotArg) {
@@ -106,7 +168,11 @@ function toolPath(name) {
     : path.join(__dirname, '..', repositoryScript ? 'scripts' : 'config-example', name)
 }
 
-function probeCodexUsage() {
+function probeProviderResources() {
+  if (EXIT_DIAGNOSTICS) {
+    providerProbeState = 'running'
+    recordExitDiagnostic('provider-probe-started')
+  }
   return new Promise((resolve) => {
     const child = spawn(nodeExePath(), ['--use-env-proxy', toolPath('model-resource-probe.mjs'), resolveRuntimeRoot(), dshHomePath()], {
       windowsHide: true,
@@ -120,10 +186,12 @@ function probeCodexUsage() {
       resolve({ ok: false, code: 'TIMEOUT' })
     }, 10_000)
     child.once('error', () => {
+      if (EXIT_DIAGNOSTICS) { providerProbeState = 'error'; recordExitDiagnostic('provider-probe-error') }
       clearTimeout(timer)
       resolve({ ok: false, code: 'PROBE_FAILED' })
     })
     child.once('exit', () => {
+      if (EXIT_DIAGNOSTICS) { providerProbeState = 'exited'; recordExitDiagnostic('provider-probe-exit') }
       clearTimeout(timer)
       try { resolve(JSON.parse(output.trim())) } catch { resolve({ ok: false, code: 'PROBE_FAILED' }) }
     })
@@ -170,6 +238,14 @@ function startServer(port) {
     delete env[key]
   }
   env.DSH_HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh')
+  const workspace = resolveWorkspacePath({
+    app, env, argv: process.argv, tempDir: os.tmpdir(), dshHome: env.DSH_HOME,
+  })
+  env.DSH_WORKSPACE = workspace
+  if (EXIT_DIAGNOSTICS) {
+    if (!isStrictlyWithin(exitDiagnostics.temporary, workspace)) throw new Error('Exit diagnostics workspace escaped TEMP')
+    recordExitDiagnostic('workspace-resolved', { workspaceTemporary: true })
+  }
 
   const nodeExe = nodeExePath()
   if (!fs.existsSync(nodeExe)) {
@@ -191,7 +267,7 @@ function startServer(port) {
     log(`repairing runtime junctions at ${resources}`)
     const fix = spawnSync(nodeExe, [fixer, resources], {
       windowsHide: true,
-      timeout: 180000,
+      timeout: JUNCTION_REPAIR_TIMEOUT_MS,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     if (fix.stdout) log(`[fix] ${String(fix.stdout).trimEnd()}`)
@@ -201,13 +277,15 @@ function startServer(port) {
     }
   }
 
-  log(`spawning node ${binJs} web --port ${port} (DSH_HOME=${env.DSH_HOME})`)
+  log(`spawning node ${binJs} web --port ${port} (workspace=${workspace})`)
   serverChild = spawn(nodeExe, ['--use-env-proxy', binJs, 'web', '--no-open', '--host', '127.0.0.1', '--port', String(port)], {
-    cwd: path.dirname(app.getPath('exe')),
+    cwd: workspace,
     env,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+  const child = serverChild
+  serverReadyUrl = null
   let stdout = ''
   let resolveReadyUrl
   let rejectReadyUrl
@@ -216,8 +294,15 @@ function startServer(port) {
     rejectReadyUrl = reject
   })
   const readyTimer = setTimeout(() => {
-    rejectReadyUrl(new Error('server did not report its authenticated URL within 90000ms'))
-  }, 90000)
+    rejectReadyUrl(new Error(`server did not report its authenticated URL within ${ENGINE_READY_TIMEOUT_MS}ms`))
+    try { child.kill() } catch {}
+  }, ENGINE_READY_TIMEOUT_MS)
+  child.once('error', (error) => {
+    clearTimeout(readyTimer)
+    rejectReadyUrl(error)
+    if (serverChild === child) serverChild = null
+    if (!stopping) engineRecovery.failed()
+  })
   serverChild.stdout.on('data', (chunk) => {
     const text = String(chunk)
     stdout = `${stdout}${text}`.slice(-8192)
@@ -228,21 +313,21 @@ function startServer(port) {
       const parsed = new URL(match[1])
       if (parsed.hostname !== '127.0.0.1' || parsed.port !== String(port)) return
       clearTimeout(readyTimer)
+      serverReadyUrl = parsed.href
       resolveReadyUrl(parsed.href)
     } catch {}
   })
   serverChild.stderr.on('data', (chunk) => log(`[dsh!] ${String(chunk).trimEnd()}`))
   serverChild.on('exit', (code, signal) => {
+    recordExitDiagnostic('server-child-exit', { code: code ?? null, signal: signal ?? null })
     clearTimeout(readyTimer)
     rejectReadyUrl(new Error('server exited before reporting its authenticated URL'))
     log(`dsh server exited (code=${code}, signal=${signal})`)
+    if (serverChild !== child) return
     serverChild = null
+    serverReadyUrl = null
     if (!stopping) {
-      dialog.showErrorBox(
-        PRODUCT,
-        `The DeepSeek engine stopped unexpectedly (code ${code ?? signal}).\n\nLog: ${LOG_PATH}`,
-      )
-      app.quit()
+      engineRecovery.failed()
     }
   })
   return readyUrl
@@ -255,7 +340,7 @@ function injectDesktopFrame(win) {
       readInjected(path.join('themes', 'deepsea-adapter.css')),
     ].filter(Boolean).join('\n')
     const titlebarJs = readInjected('titlebar.js')
-      .replace('__DEEPSEEK_LOGO_DATA_URL__', nativeImage.createFromPath(iconPath()).resize({ width: 18, height: 18 }).toDataURL())
+      .replace('__DEEPSEEK_LOGO_DATA_URL__', titlebarLogoDataUrl(__dirname, process.resourcesPath, app.isPackaged))
     if (themeCss) win.webContents.insertCSS(themeCss, { cssOrigin: 'author' }).catch(() => {})
     if (titlebarJs) win.webContents.executeJavaScript(titlebarJs).catch(() => {})
   }
@@ -268,6 +353,21 @@ function readInjected(name) {
     return fs.readFileSync(path.join(__dirname, name), 'utf8')
   } catch {
     return ''
+  }
+}
+
+function attachMainRpcLifecycle(engineUrl) {
+  mainRpcLifecycle?.dispose()
+  mainRpcLifecycle = null
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  try {
+    mainRpcLifecycle = attachRpcLifecycleLogging({
+      webRequest: mainWindow.webContents.session.webRequest,
+      engineOrigin: engineUrl,
+      log,
+    })
+  } catch {
+    // Request diagnostics are optional and must never block the UI or engine.
   }
 }
 
@@ -295,7 +395,12 @@ async function createWindow(authenticatedUrl) {
   mainWindow.once('ready-to-show', () => mainWindow && mainWindow.show())
   mainWindow.on('maximize', () => mainWindow?.webContents.send('cc:max-changed', true))
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('cc:max-changed', false))
-  mainWindow.on('closed', () => { mainWindow = null })
+  mainWindow.on('closed', () => {
+    recordExitDiagnostic('main-window-closed')
+    mainRpcLifecycle?.dispose()
+    mainRpcLifecycle = null
+    mainWindow = null
+  })
 
   const base = new URL('/', authenticatedUrl).href
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -307,7 +412,11 @@ async function createWindow(authenticatedUrl) {
   })
 
   injectDesktopFrame(mainWindow)
+  attachMainRpcLifecycle(authenticatedUrl)
   await mainWindow.loadURL(authenticatedUrl)
+  // A hidden Windows launch can finish navigation without a first-paint
+  // ready-to-show notification. Successful navigation must still reveal it.
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show()
 }
 
 function isTrustedSender(event, win) {
@@ -317,50 +426,6 @@ function isTrustedSender(event, win) {
     && event.sender === win.webContents
     && event.senderFrame === win.webContents.mainFrame
   )
-}
-
-async function createHarnessLabWindow() {
-  if (harnessLabWindow && !harnessLabWindow.isDestroyed()) {
-    if (harnessLabWindow.isMinimized()) harnessLabWindow.restore()
-    harnessLabWindow.show()
-    harnessLabWindow.focus()
-    return harnessLabWindow
-  }
-
-  harnessLabWindow = new BrowserWindow({
-    width: 1320,
-    height: 860,
-    minWidth: 920,
-    minHeight: 620,
-    show: false,
-    backgroundColor: '#111214',
-    icon: iconPath(),
-    title: 'Harness Lab',
-    autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-      spellcheck: false,
-      partition: 'harness-lab',
-      preload: path.join(__dirname, 'harness-lab', 'preload.js'),
-    },
-  })
-
-  const labHtml = path.join(__dirname, 'harness-lab', 'index.html')
-  const labUrl = pathToFileURL(labHtml).href
-  harnessLabWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  harnessLabWindow.webContents.on('will-navigate', (event, url) => {
-    if (url !== labUrl) event.preventDefault()
-  })
-  harnessLabWindow.webContents.on('will-attach-webview', (event) => event.preventDefault())
-  harnessLabWindow.webContents.session.setPermissionCheckHandler(() => false)
-  harnessLabWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-  harnessLabWindow.once('ready-to-show', () => harnessLabWindow?.show())
-  harnessLabWindow.on('closed', () => { harnessLabWindow = null })
-  await harnessLabWindow.loadFile(labHtml)
-  return harnessLabWindow
 }
 
 function readOAuthSummary() {
@@ -380,6 +445,15 @@ function readOAuthSummary() {
 }
 
 function refreshPatchStatus() {
+  const native = nativeCredentialIntegration(resolveRuntimeRoot())
+  if (native) {
+    cachedPatchStatus = native
+    return Promise.resolve(native)
+  }
+  if (!fs.existsSync(toolPath('patch-pi-ai-oauth.mjs'))) {
+    cachedPatchStatus = { ok: null, detail: '当前版本未提供旧补丁检查器；不据此判断账号失效。' }
+    return Promise.resolve(cachedPatchStatus)
+  }
   return new Promise((resolve) => {
     const child = spawn(nodeExePath(), [toolPath('patch-pi-ai-oauth.mjs'), resolveRuntimeRoot(), '--check'], {
       windowsHide: true,
@@ -462,9 +536,40 @@ async function createModelSettingsWindow() {
   await modelSettingsWindow.loadFile(settingsHtml)
 }
 
+async function createTaskArchiveWindow() {
+  if (taskArchiveWindow && !taskArchiveWindow.isDestroyed()) {
+    taskArchiveWindow.show()
+    taskArchiveWindow.focus()
+    return
+  }
+  taskArchiveWindow = new BrowserWindow({
+    width: 980, height: 780, minWidth: 760, minHeight: 580, show: false,
+    backgroundColor: WINDOW_BG, icon: iconPath(), title: '任务档案与批次验收', autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true,
+      preload: path.join(__dirname, 'task-archive', 'preload.js'),
+    },
+  })
+  const archiveHtml = path.join(__dirname, 'task-archive', 'index.html')
+  const archiveUrl = pathToFileURL(archiveHtml).href
+  taskArchiveWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  taskArchiveWindow.webContents.on('will-navigate', (event, url) => { if (url !== archiveUrl) event.preventDefault() })
+  taskArchiveWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+  taskArchiveWindow.once('ready-to-show', () => taskArchiveWindow?.show())
+  taskArchiveWindow.on('closed', () => { taskArchiveWindow = null })
+  await taskArchiveWindow.loadFile(archiveHtml)
+}
+
 function trustedSettingsHandler(operation) {
   return async (event, ...args) => {
     if (!isTrustedSender(event, modelSettingsWindow)) throw new Error('Settings request denied')
+    return operation(...args)
+  }
+}
+
+function trustedTaskArchiveHandler(operation) {
+  return async (event, ...args) => {
+    if (!isTrustedSender(event, taskArchiveWindow)) throw new Error('Task archive request denied')
     return operation(...args)
   }
 }
@@ -485,148 +590,6 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function harnessLabReport(win) {
-  return win.webContents.executeJavaScript(`(() => ({
-    title: document.querySelector('h1')?.textContent,
-    runRows: document.querySelectorAll('#runs-body tr').length,
-    summaryCards: document.querySelectorAll('#summary-cards .summary-card').length,
-    divergences: document.querySelectorAll('#divergence-list .divergence-card').length,
-    diagnosis: document.getElementById('diagnosis-headline')?.textContent,
-    healthVisible: !document.getElementById('run-health')?.hidden,
-    businessGate: document.getElementById('business-gate')?.textContent,
-    compareVisible: !document.getElementById('compare-content')?.hidden,
-    feedback: document.getElementById('runs-feedback')?.textContent,
-  }))()`)
-}
-
-function harnessLabDemoDir() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'demo')
-    : path.join(__dirname, 'demo')
-}
-
-async function waitForHarnessLab(win, predicate, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs
-  let lastReport = null
-  while (Date.now() <= deadline) {
-    const report = await harnessLabReport(win)
-    lastReport = report
-    if (predicate(report)) return report
-    await delay(100)
-  }
-  throw new Error(`Harness Lab did not reach the expected state: ${JSON.stringify(lastReport)}`)
-}
-
-function setupHarnessLabAutomation(win) {
-  const verify = process.argv.includes('--verify-harness-lab')
-  const shotArg = process.argv.find((arg) => arg.startsWith('--shot='))
-  if (!verify && !shotArg) return
-
-  void (async () => {
-    try {
-      await waitForHarnessLab(win, (report) => report.runRows >= 2)
-      await win.webContents.executeJavaScript(`(() => {
-        const selectRun = (rowIndex, side) => document
-          .querySelectorAll('#runs-body tr')[rowIndex]
-          ?.querySelector('[data-select-side="' + side + '"]')
-          ?.click()
-        if (document.querySelectorAll('#runs-body tr').length >= 2) {
-          document.querySelectorAll('#runs-body tr')[0]?.querySelector('[data-action="inspect"]')?.click()
-          selectRun(0, 'a')
-          selectRun(1, 'b')
-          document.getElementById('compare-selected')?.click()
-        }
-      })()`)
-      const report = await waitForHarnessLab(win, (candidate) => (
-        candidate.compareVisible && candidate.summaryCards === 6 && candidate.divergences >= 4 && candidate.healthVisible
-      ))
-      const ok = report.title === '执行实验室'
-        && report.runRows === 2
-        && report.summaryCards === 6
-        && report.divergences >= 4
-        && report.diagnosis === '运行 B 的执行轨迹整体更精简、稳定。'
-        && report.businessGate === '尚未验收'
-        && report.compareVisible
-      if (verify) {
-        console.log(`HARNESS-LAB-VERIFY ${JSON.stringify(report)}`)
-        process.exitCode = ok ? 0 : 1
-      }
-      if (shotArg) {
-        const target = screenshotTarget(shotArg)
-        const image = await win.webContents.capturePage()
-        writeScreenshot(target, image)
-        log(`Harness Lab screenshot written to temporary file: ${path.basename(target)}`)
-      }
-    } catch (error) {
-      process.exitCode = 1
-      log(`Harness Lab automation failed: ${String(error && error.message ? error.message : error)}`)
-    }
-    app.quit()
-  })()
-}
-
-function harnessLabHandler(operation) {
-  return async (event, ...args) => {
-    if (!isTrustedSender(event, harnessLabWindow) || !harnessLabService) {
-      throw new Error('Harness Lab request denied')
-    }
-    try {
-      return await operation(harnessLabService, ...args)
-    } catch (error) {
-      if (error?.code === 'HARNESS_LAB_ZSTD_UNAVAILABLE') {
-        throw new Error('Harness Lab cannot read compressed sessions in this runtime')
-      }
-      if (error?.code === 'HARNESS_LAB_NOT_COMPARABLE') {
-        throw new Error('只有同一任务谱系下的不同尝试才能进行受控对比')
-      }
-      throw new Error('Harness Lab request failed')
-    }
-  }
-}
-
-function comparisonMarkdown(comparison) {
-  const diagnosis = comparison.diagnosis || {}
-  const findings = Array.isArray(diagnosis.findings) ? diagnosis.findings : []
-  const recommendations = Array.isArray(diagnosis.recommendations) ? diagnosis.recommendations : []
-  return [
-    '# Harness Lab 对比报告', '',
-    `## 结论`, '', diagnosis.headline || '暂无明确结论。', '',
-    '## 关键发现', '', ...findings.map((item) => `- ${item.text}`), '',
-    '## 下一步动作', '', ...recommendations.map((item) => `- ${item}`), '',
-    `> ${diagnosis.caveat || '结论只评价执行轨迹。'}`, '',
-  ].join('\n')
-}
-
-function optimizationBrief(comparison) {
-  const diagnosis = comparison.diagnosis || {}
-  const actions = Array.isArray(diagnosis.recommendations) ? diagnosis.recommendations : []
-  return [
-    '请基于上一轮执行复盘优化本次任务。',
-    diagnosis.headline || '',
-    ...actions.map((item, index) => `${index + 1}. ${item}`),
-    '要求：保持最终业务目标不变，减少无效工具调用；关键修改后及时运行最小验证；完成后报告采取的优化和验证结果。',
-  ].filter(Boolean).join('\n')
-}
-
-function runFixBrief(run) {
-  const diagnosis = run.diagnosis || {}
-  return [
-    '请继续修复并完成上一轮任务。',
-    diagnosis.headline || '',
-    ...(diagnosis.issues || []).map((item) => `发现：${item}`),
-    ...(diagnosis.actions || []).map((item, index) => `${index + 1}. ${item}`),
-    '要求：保持原业务目标不变；完成后验证最终产物，并明确报告业务验收结果。',
-  ].filter(Boolean).join('\n')
-}
-
-function baselinePath() {
-  return path.join(app.getPath('userData'), 'harness-lab-baseline.json')
-}
-
-function readBaselineId() {
-  try { return JSON.parse(fs.readFileSync(baselinePath(), 'utf8')).runId || null } catch { return null }
-}
-
 // ---- GitHub version check (major-version updates only) ---------------------
 
 const UPDATE_CHECK_MS = 24 * 60 * 60 * 1000 // at most one upstream check per day
@@ -645,131 +608,25 @@ function readBuildInfo() {
   }
 }
 
-function updateCachePath() {
-  return path.join(app.getPath('userData'), 'update-cache.json')
-}
-
-function readUpdateCache() {
-  try { return JSON.parse(fs.readFileSync(updateCachePath(), 'utf8')) } catch { return {} }
-}
-
-function writeUpdateCache(cache) {
-  try { fs.writeFileSync(updateCachePath(), JSON.stringify(cache, null, 2)) } catch {}
-}
-
-/** major.minor of a semver-ish string; e.g. "0.1.0-rc.5" -> [0, 1]. */
-function majorMinor(version) {
-  const m = String(version).trim().match(/^v?(\d+)\.(\d+)/)
-  if (!m) return [0, 0]
-  return [Number(m[1]), Number(m[2])]
-}
-
-/**
- * Ask GitHub what version upstream master carries, and decide whether it is a
- * "major" release relative to this build: only a higher major OR minor number
- * counts. Patch/prerelease churn never prompts, per user preference.
- */
-async function checkForUpdates({ force = false } = {}) {
-  const info = readBuildInfo()
-  if (!info || !info.dshRepo || !info.dshBranch || !info.dshVersion) {
-    return { error: 'no build info' }
-  }
-  const cache = readUpdateCache()
-  if (!force && cache.lastCheckedAt && Date.now() - cache.lastCheckedAt < UPDATE_CHECK_MS) {
-    const [curMajor, curMinor] = majorMinor(info.dshVersion)
-    const [seenMajor, seenMinor] = majorMinor(cache.latestVersion ?? '0.0.0')
-    return {
-      updateAvailable: seenMajor > curMajor || (seenMajor === curMajor && seenMinor > curMinor),
-      cached: true,
-      latestVersion: cache.latestVersion,
-      build: info,
-    }
-  }
-  const url = `https://raw.githubusercontent.com/${info.dshRepo}/${encodeURIComponent(info.dshBranch)}/package.json`
-  try {
-    // net.fetch rides the Chromium network stack, so the system proxy
-    // (e.g. 127.0.0.1:10808) applies — plain node fetch bypasses it.
-    const res = await electronNet.fetch(url, { headers: { 'User-Agent': 'DeepSeek-Desktop' } })
-    if (!res.ok) return { error: `github ${res.status}` }
-    const manifest = await res.json()
-    const latestVersion = typeof manifest.version === 'string' ? manifest.version : null
-    if (!latestVersion) return { error: 'no version upstream' }
-    writeUpdateCache({ lastCheckedAt: Date.now(), latestVersion })
-    const [curMajor, curMinor] = majorMinor(info.dshVersion)
-    const [upMajor, upMinor] = majorMinor(latestVersion)
-    const updateAvailable = upMajor > curMajor || (upMajor === curMajor && upMinor > curMinor)
-    return { updateAvailable, latestVersion, build: info }
-  } catch (error) {
-    return { error: String(error && error.message ? error.message : error) }
-  }
-}
-
-function updaterScriptPath() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'sync-update.ps1')
-    : path.join(__dirname, '..', 'scripts', 'sync-update.ps1')
-}
-
-/** The exe to relaunch after an update (portable runs from a temp extraction). */
-function relaunchTarget() {
-  if (process.env.PORTABLE_EXECUTABLE_FILE) return process.env.PORTABLE_EXECUTABLE_FILE
-  return app.getPath('exe')
-}
-
-/** Stage the updater to a stable temp path, run it visibly, then quit. */
-function launchUpdater() {
-  const src = updaterScriptPath()
-  if (!fs.existsSync(src)) {
-    dialog.showErrorBox(PRODUCT, `Updater script missing: ${src}`)
-    return
-  }
-  const staged = path.join(os.tmpdir(), 'deepseek-update.ps1')
-  try {
-    fs.copyFileSync(src, staged)
-  } catch (error) {
-    dialog.showErrorBox(PRODUCT, `Cannot stage updater: ${String(error && error.message ? error.message : error)}`)
-    return
-  }
-  log(`launching updater (relaunch=${relaunchTarget()})`)
-  const child = spawn('powershell.exe', [
-    '-ExecutionPolicy', 'Bypass', '-File', staged,
-    '-Relaunch', relaunchTarget(),
-  ], { detached: true, stdio: 'ignore', windowsHide: false })
-  child.unref()
-  setTimeout(() => app.quit(), 1500)
-}
-
-async function offerUpdate(result) {
-  if (!result.updateAvailable || !mainWindow) return
-  const info = result.build
-  const detail = [
-    `当前版本: ${info.dshVersion} (${info.dshCommitShort ?? ''})`,
-    `最新版本: ${result.latestVersion}`,
-    '',
-    '更新会退出应用，拉取最新代码并重新打包（约 10–15 分钟），完成后自动重启。',
-  ].join('\n')
-  const { response } = await dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'DeepSeek 有新版本',
-    message: `发现新的大版本 ${result.latestVersion}`,
-    detail,
-    buttons: ['立即更新', '稍后'],
-    defaultId: 0,
-    cancelId: 1,
-  })
-  if (response === 0) launchUpdater()
+/** Only qualified Desktop artifacts may authorize an update, not upstream tags. */
+async function checkForUpdates() {
+  // A remote channel must be explicitly provisioned with a trust policy first.
+  return { updateAvailable: false, channel: 'qualified-artifacts', status: 'channel-not-configured', build: readBuildInfo() }
 }
 
 // ---- single instance -------------------------------------------------------
 
-const gotLock = app.requestSingleInstanceLock()
+// The disposable, TEMP-guarded exit diagnostic needs to coexist with the
+// user's running Desktop instance. Normal launches retain the single lock.
+const gotLock = EXIT_DIAGNOSTICS ? true : app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    const targetWindow = HARNESS_LAB_DEMO ? harnessLabWindow : MODEL_SETTINGS_DEMO ? modelSettingsWindow : mainWindow
+    const targetWindow = MODEL_SETTINGS_DEMO ? modelSettingsWindow : mainWindow
     if (targetWindow) {
       if (targetWindow.isMinimized()) targetWindow.restore()
+      targetWindow.show()
       targetWindow.focus()
     }
   })
@@ -783,6 +640,24 @@ if (!gotLock) {
   })
   ipcMain.on('cc:close', () => mainWindow?.close())
   ipcMain.handle('cc:isMax', () => mainWindow?.isMaximized() ?? false)
+  ipcMain.handle('cc:engine-state', (event) => {
+    if (!isTrustedSender(event, mainWindow)) throw new Error('Untrusted sender')
+    return { state: engineRecovery.state }
+  })
+  ipcMain.handle('cc:recover-engine', async (event) => {
+    if (!isTrustedSender(event, mainWindow)) throw new Error('Untrusted sender')
+    if (recoveryPrompt || engineRecovery.pending || engineRecovery.state === 'online') return false
+    recoveryPrompt = true
+    try {
+      const answer = await dialog.showMessageBox(mainWindow, {
+        type: 'warning', title: PRODUCT,
+        message: '重新连接引擎将刷新当前页面。请先复制未发送的草稿。',
+        detail: '保留当前会话入口，不会自动重发消息或重新执行任务。连接后请核对任务进度再继续。',
+        buttons: ['暂不恢复', '重新连接'], defaultId: 0, cancelId: 0,
+      })
+      return answer.response === 1 && !stopping ? engineRecovery.recover() : false
+    } finally { recoveryPrompt = false }
+  })
   ipcMain.handle('cc:get-session-pins', (event) => {
     if (!isTrustedSender(event, mainWindow)) throw new Error('Session pin request denied')
     return readSessionPins()
@@ -802,15 +677,13 @@ if (!gotLock) {
     modelResourceService?.scheduleRefresh().catch(() => {})
     return modelResourceService?.getCachedSnapshot() ?? null
   })
-  ipcMain.on('cc:open-harness-lab', (event) => {
-    if (!isTrustedSender(event, mainWindow)) return
-    createHarnessLabWindow().catch(() => {
-      dialog.showErrorBox('Harness Lab', 'Could not open the local Harness Lab window.')
-    })
-  })
   ipcMain.on('cc:open-model-settings', (event) => {
     if (!isTrustedSender(event, mainWindow)) return
     createModelSettingsWindow().catch(() => dialog.showErrorBox(PRODUCT, '无法打开模型资源中心。'))
+  })
+  ipcMain.on('cc:open-task-archive', (event) => {
+    if (!isTrustedSender(event, mainWindow)) return
+    createTaskArchiveWindow().catch(() => dialog.showErrorBox(PRODUCT, '无法打开任务档案。'))
   })
   ipcMain.handle('model-settings:health', trustedSettingsHandler(() => modelHealth()))
   ipcMain.handle('model-settings:resources', trustedSettingsHandler(() => {
@@ -824,73 +697,35 @@ if (!gotLock) {
     fs.mkdirSync(dshHomePath(), { recursive: true })
     return shell.openPath(dshHomePath())
   }))
-
-  ipcMain.handle('harness-lab:list-runs', harnessLabHandler(async (service) => {
-    const baselineId = readBaselineId()
-    return (await service.listRuns()).map((run) => ({ ...run, isBaseline: run.runId === baselineId }))
-  }))
-  ipcMain.handle('harness-lab:get-run', harnessLabHandler((service, runId) => service.getRun(runId)))
-  ipcMain.handle('harness-lab:compare-runs', harnessLabHandler((service, runAId, runBId) => service.compare(runAId, runBId)))
-  ipcMain.handle('harness-lab:copy-brief', harnessLabHandler(async (service, runAId, runBId) => {
-    clipboard.writeText(optimizationBrief(await service.compare(runAId, runBId)))
-    return { copied: true }
-  }))
-  ipcMain.handle('harness-lab:export-report', harnessLabHandler(async (service, runAId, runBId) => {
-    const comparison = await service.compare(runAId, runBId)
-    const result = await dialog.showSaveDialog(harnessLabWindow, {
-      title: '导出 Harness Lab 对比报告',
-      defaultPath: `harness-lab-${new Date().toISOString().slice(0, 10)}.md`,
-      filters: [{ name: 'Markdown', extensions: ['md'] }],
+  ipcMain.handle('task-archive:bind', trustedTaskArchiveHandler(async (metadata) => {
+    const picked = await dialog.showOpenDialog(taskArchiveWindow, {
+      title: '选择原始任务清单', properties: ['openFile'],
+      filters: [{ name: 'Task manifests', extensions: ['json', 'csv'] }],
     })
-    if (result.canceled || !result.filePath) return { exported: false }
-    fs.writeFileSync(result.filePath, comparisonMarkdown(comparison), { encoding: 'utf8', flag: 'wx', mode: 0o600 })
-    return { exported: true }
+    if (picked.canceled || !picked.filePaths[0]) return null
+    return taskArchive.bind(dshHomePath(), picked.filePaths[0], metadata && typeof metadata === 'object' ? metadata : {})
   }))
-  ipcMain.handle('harness-lab:set-baseline', harnessLabHandler(async (service, runId) => {
-    await service.requireRun(runId)
-    fs.writeFileSync(baselinePath(), JSON.stringify({ runId, savedAt: new Date().toISOString() }), { mode: 0o600 })
-    return { saved: true }
-  }))
-  ipcMain.handle('harness-lab:copy-run-fix', harnessLabHandler(async (service, runId) => {
-    clipboard.writeText(runFixBrief(await service.getRun(runId)))
-    return { copied: true }
-  }))
-  ipcMain.handle('harness-lab:open-original', harnessLabHandler(async (service, runId) => {
-    const sessionId = await service.sourceSessionId(runId)
-    if (!sessionId || !mainWindow || mainWindow.isDestroyed()) return { opened: false }
-    const located = await mainWindow.webContents.executeJavaScript(`(() => {
-      const id = ${JSON.stringify(sessionId)}
-      const nodes = [...document.querySelectorAll('[href], [data-session-id], [data-session]')]
-      const target = nodes.find((node) => [node.getAttribute('href'), node.getAttribute('data-session-id'), node.getAttribute('data-session')]
-        .filter(Boolean).some((value) => value === id || value.includes(encodeURIComponent(id)) || value.includes(id)))
-      if (!target) return false
-      target.click()
-      return true
-    })()`)
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
-    if (located) harnessLabWindow?.hide()
-    return { opened: Boolean(located) }
-  }))
+  ipcMain.handle('task-archive:list', trustedTaskArchiveHandler(() => taskArchive.listArchives(dshHomePath())))
+  ipcMain.handle('task-archive:read', trustedTaskArchiveHandler((taskId) => taskArchive.view(dshHomePath(), taskId)))
+  ipcMain.handle('task-archive:checkpoint', trustedTaskArchiveHandler((taskId, revision, metadata) => taskArchive.checkpoint(dshHomePath(), taskId, revision, metadata)))
+  ipcMain.handle('task-archive:inspect', trustedTaskArchiveHandler((taskId, itemId) => taskArchive.itemDetails(dshHomePath(), taskId, itemId)))
+  ipcMain.handle('task-archive:accept', trustedTaskArchiveHandler((taskId, itemId, sourceSha256, manifestSha256, artifactSha256) => taskArchive.accept(dshHomePath(), taskId, itemId, sourceSha256, manifestSha256, artifactSha256)))
+  ipcMain.handle('task-archive:retry-plan', trustedTaskArchiveHandler((taskId) => taskArchive.retryPlan(dshHomePath(), taskId)))
 
   // ---- lifecycle -------------------------------------------------------------
 
   app.whenReady().then(async () => {
     app.setAppUserModelId(APP_ID)
     Menu.setApplicationMenu(null)
-    harnessLabService = new HarnessLabSessionService({
-      demoMode: HARNESS_LAB_DEMO,
-      demoDir: harnessLabDemoDir(),
-      summaryCachePath: path.join(app.getPath('userData'), 'harness-lab-summary-cache.json'),
-    })
     modelResourceService = new ModelResourceService({
       dshHome: dshHomePath(),
-      probeCodexUsage: MODEL_SETTINGS_DEMO && process.env.MODEL_RESOURCES_LIVE !== '1' ? null : probeCodexUsage,
+      probeProviderResources: MODEL_SETTINGS_DEMO && process.env.MODEL_RESOURCES_LIVE !== '1' ? null : probeProviderResources,
     })
     modelResourceService.on('updated', publishModelResources)
-    modelResourceService.startWatching()
-    setTimeout(() => modelResourceService?.scheduleRefresh({ force: true }).catch(() => {}), 250)
+    if (MODEL_SETTINGS_DEMO) {
+      modelResourceService.startWatching()
+      setTimeout(() => modelResourceService?.scheduleRefresh({ force: true }).catch(() => {}), 250)
+    }
     setTimeout(() => refreshPatchStatus().catch(() => {}), 500)
     if (!app.isPackaged) {
       // Dev convenience: F12 toggles DevTools.
@@ -902,19 +737,6 @@ if (!gotLock) {
           }
         })
       })
-    }
-
-    if (HARNESS_LAB_DEMO) {
-      try {
-        const win = await createHarnessLabWindow()
-        setupHarnessLabAutomation(win)
-        log('Harness Lab demo ready')
-      } catch (error) {
-        log(`Harness Lab demo startup failed: ${String(error && error.message ? error.message : error)}`)
-        dialog.showErrorBox('Harness Lab', 'Could not start Harness Lab demo mode.')
-        app.quit()
-      }
-      return
     }
 
     if (MODEL_SETTINGS_DEMO) {
@@ -954,16 +776,50 @@ if (!gotLock) {
     let port
     try {
       port = await findFreePort()
+      serverPort = port
       const readyUrl = startServer(port)
-      await waitForHttp(port, 90000)
+      await waitForHttp(port, ENGINE_READY_TIMEOUT_MS)
       await createWindow(await readyUrl)
       log('window ready')
+      modelResourceService.startWatching()
+      setTimeout(() => {
+        if (!stopping) modelResourceService?.scheduleRefresh().catch(() => {})
+      }, 5_000)
     } catch (error) {
       log(`startup failed: ${error && error.stack ? error.stack : String(error)}`)
       dialog.showErrorBox(
         PRODUCT,
         `Could not start the DeepSeek engine.\n\n${String(error && error.message ? error.message : error)}\n\nLog: ${LOG_PATH}`,
       )
+      app.quit()
+      return
+    }
+
+    // Destructive failure injection is restricted to an isolated temporary home.
+    if (process.argv.includes('--verify-engine-recovery')) {
+      try {
+        const home = path.resolve(dshHomePath())
+        if (!home.startsWith(`${path.resolve(os.tmpdir())}${path.sep}`)) throw new Error('Recovery verification requires a temporary DSH_HOME')
+        const win = mainWindow
+        await delay(RECOVERY_PRE_KILL_DELAY_MS)
+        await win.webContents.executeJavaScript("document.body.dataset.recoveryDraft = 'synthetic-unsent-draft'")
+        const child = serverChild
+        const exited = new Promise((resolve) => child.once('exit', resolve))
+        child.kill()
+        await exited
+        const retained = win === mainWindow && !win.isDestroyed()
+          && await win.webContents.executeJavaScript("document.body.dataset.recoveryDraft === 'synthetic-unsent-draft'")
+        const offline = engineRecovery.state === 'offline'
+        const recovered = await engineRecovery.recover()
+        await delay(RECOVERY_POST_RESTART_DELAY_MS)
+        const frame = await win.webContents.executeJavaScript("Boolean(document.getElementById('cc-titlebar'))")
+        const report = { retained, offline, recovered, frame, sameWindow: win === mainWindow }
+        console.log(`ENGINE-RECOVERY-VERIFY ${JSON.stringify(report)}`)
+        process.exitCode = Object.values(report).every(Boolean) ? 0 : 1
+      } catch (error) {
+        process.exitCode = 1
+        console.log(`ENGINE-RECOVERY-VERIFY failed: ${error.message}`)
+      }
       app.quit()
       return
     }
@@ -977,11 +833,12 @@ if (!gotLock) {
       return
     }
 
-    // Non-blocking version check shortly after launch; only "major" releases prompt.
-    setTimeout(async () => {
+    // Keep isolated verification free of update network traffic and prompts.
+    // Normal launches still check for major releases shortly after startup.
+    const verificationRun = process.argv.some(arg => arg === '--verify' || arg.startsWith('--verify-') || arg.startsWith('--shot='))
+    if (!verificationRun) setTimeout(async () => {
       const result = await checkForUpdates()
       log(`update check: ${JSON.stringify(result)}`)
-      if (result.updateAvailable) await offerUpdate(result)
     }, 12000)
 
     // --shot=<filename.png>: capture into the OS temporary directory without
@@ -999,7 +856,7 @@ if (!gotLock) {
           log(`screenshot failed: ${error}`)
         }
         app.quit()
-      }, 8000)
+      }, SCREENSHOT_RENDER_DELAY_MS)
     }
 
     // --verify: programmatic UI check — sample computed styles and print JSON,
@@ -1013,6 +870,8 @@ if (!gotLock) {
             const accent = bodyStyle.getPropertyValue('--dsw-alias-brand-primary').trim()
             return {
               titlebarPresent: Boolean(bar),
+              desktopActions: Array.from(bar?.querySelectorAll('[data-act]') || [], (button) => button.dataset.act),
+              logoLoaded: Boolean(bar?.querySelector('.cc-mark')?.complete && bar.querySelector('.cc-mark').naturalWidth > 0),
               appContentPresent: Boolean(document.body.innerText.replace(bar?.innerText || '', '').trim()),
               viewportOverflow: document.documentElement.scrollHeight > document.documentElement.clientHeight,
               darkAttr: document.body.hasAttribute('data-ds-dark-theme'),
@@ -1027,11 +886,14 @@ if (!gotLock) {
             || String(report.accent) === '#4d8dff'
             || String(report.accent).includes('77, 141, 255')
           const ok = report.titlebarPresent
+            && JSON.stringify(report.desktopActions) === JSON.stringify(['tasks', 'settings', 'resources', 'recover', 'min', 'max', 'close'])
+            && report.logoLoaded
             && report.appContentPresent
             && !report.viewportOverflow
             && report.titlebarBg === 'rgb(5, 10, 18)'
             && themeOk
           console.log(`VERIFY ${JSON.stringify(report)}`)
+          recordExitDiagnostic('verify-emitted', { ok })
           process.exitCode = ok ? 0 : 1
           log(`verify: ${ok ? 'OK' : 'FAILED'} ${JSON.stringify(report)}`)
         } catch (error) {
@@ -1039,12 +901,14 @@ if (!gotLock) {
           process.exitCode = 1
         }
         app.quit()
-      }, 12000)
+      }, VERIFY_RENDER_DELAY_MS)
     }
   })
 
   app.on('before-quit', () => {
+    recordExitDiagnostic('before-quit')
     stopping = true
+    engineRecovery.close()
     modelResourceService?.stopWatching()
     if (serverChild) {
       try { serverChild.kill() } catch {}
@@ -1053,6 +917,9 @@ if (!gotLock) {
   })
 
   app.on('window-all-closed', () => {
+    recordExitDiagnostic('window-all-closed')
     app.quit()
   })
+  app.on('will-quit', () => recordExitDiagnostic('will-quit'))
+  app.on('quit', () => recordExitDiagnostic('quit'))
 }

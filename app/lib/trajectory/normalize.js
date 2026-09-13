@@ -224,7 +224,19 @@ function turnStepKey(data) {
 
 function normalizeDshRecords(parsed, options = {}) {
   const header = parsed.header && typeof parsed.header === 'object' ? parsed.header : {}
-  const records = Array.isArray(parsed.records) ? parsed.records : []
+  if (![0, 2].includes(header.version ?? 0)) throw new Error('Unsupported session format version')
+  const records = (Array.isArray(parsed.records) ? parsed.records : []).flatMap(record => {
+    if (header.version !== 2 || !['assistant/message', 'assistant/attempt'].includes(record?.type)) return [record]
+    const data = record.data || {}
+    if (!Array.isArray(data.stream)) throw new Error('Missing v2 assistant stream')
+    const usageRecords = data.stream.filter(item => item.type === 'chunk' && item.chunk?.type === 'usage')
+    if (!usageRecords.length) return [record]
+    // Embedded accounting belongs to this attempt, not all retries in its step.
+    const settled = { ...record, data: { ...data, usage: undefined,
+      message: data.message ? { ...data.message, usage: undefined } : undefined } }
+    return [...usageRecords.map((item, index) => ({ type: 'assistant/chunk', seq: `${record.seq}:usage:${index}`,
+      time: item.time, data: { chunk: item.chunk } })), settled]
+  })
   const steps = []
   const callsById = new Map()
   const unpairedCalls = []
